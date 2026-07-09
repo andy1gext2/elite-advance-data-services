@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Semantic color tokens. Channels are space-separated RGB so Tailwind's
+   <alpha-value> works (e.g. bg-brand/10).
+   Brand palette from the Elite Advance Data Services logo: deep navy on white. */
+:root {
+  --bg: 248 250 252; /* slate-50 — near-white */
+  --surface: 255 255 255; /* white */
+  --border: 226 232 240; /* slate-200 */
+  --fg: 15 23 42; /* slate-900 — dark navy ink */
+  --muted: 100 116 139; /* slate-500 */
+  --brand: 18 58 92; /* #123a5c — logo navy */
+  --brand-fg: 255 255 255;
+}
+
+.dark {
+  --bg: 8 15 28; /* deep navy */
+  --surface: 15 25 42; /* navy surface */
+  --border: 30 45 66;
+  --fg: 226 232 240; /* slate-200 */
+  --muted: 148 163 184; /* slate-400 */
+  --brand: 96 165 250; /* blue-400 — light blue accent on dark */
+  --brand-fg: 8 15 28;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--fg));
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Scroll-reveal (Apple-style content entrance) ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Ambient motion ── */
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+.floaty { animation: floaty 6s ease-in-out infinite; }
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -24px) scale(1.08); }
+}
+.drift { animation: drift 16s ease-in-out infinite; }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee { animation: marquee 34s linear infinite; }
+
+.shimmer-text {
+  background: linear-gradient(
+    100deg,
+    rgb(var(--brand)) 0%,
+    rgb(var(--fg)) 45%,
+    rgb(var(--brand)) 90%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1 !important; transform: none !important; transition: none; }
+  .floaty, .drift, .marquee { animation: none !important; }
+}

@@ -1,0 +1,40 @@
+# ── Secrets / env ─────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# ── Python (backend) ──────────────────────────
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node / Next.js (frontend) ─────────────────
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# ── Data / infra ──────────────────────────────
+*.sqlite3
+*.db
+pgdata/
+
+# ── OS / editor ───────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ── Claude Code local overrides ───────────────
+.claude/settings.local.json

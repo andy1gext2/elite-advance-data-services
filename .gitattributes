@@ -1,0 +1,12 @@
+# Normalize line endings: store LF in the repo, so Linux hosts (Docker/Railway)
+# get LF regardless of the Windows working copy.
+* text=auto eol=lf
+
+# Binary assets — never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

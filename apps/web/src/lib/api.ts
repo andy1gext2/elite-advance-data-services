@@ -1,0 +1,303 @@
+// Typed client for the FastAPI backend. All requests go to the same Next origin
+// under /api/*, which next.config.mjs proxies to the backend (no CORS).
+
+import type {
+  Business,
+  ContentItem,
+  Dashboard,
+  Insights,
+  Me,
+  Plan,
+  ReputationReport,
+  RepurposeResult,
+  Review,
+  RunDueResult,
+  Schedule,
+  SocialAccount,
+  Timeframe,
+  Tokens,
+} from "./types";
+
+const ACCESS_KEY = "eads.access";
+const REFRESH_KEY = "eads.refresh";
+
+export const tokenStore = {
+  get access() {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(ACCESS_KEY);
+  },
+  get refresh() {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(REFRESH_KEY);
+  },
+  set(tokens: Tokens) {
+    localStorage.setItem(ACCESS_KEY, tokens.access_token);
+    localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
+  },
+  clear() {
+    localStorage.removeItem(ACCESS_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+  },
+};
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+type Options = {
+  method?: string;
+  body?: unknown;
+  auth?: boolean;
+  // Internal: prevents infinite refresh recursion.
+  _retried?: boolean;
+};
+
+async function request<T>(path: string, opts: Options = {}): Promise<T> {
+  const { method = "GET", body, auth = true } = opts;
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (auth && tokenStore.access) {
+    headers["Authorization"] = `Bearer ${tokenStore.access}`;
+  }
+
+  const res = await fetch(path, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  // Transparently refresh once on a 401, then retry the original request.
+  if (res.status === 401 && auth && !opts._retried && tokenStore.refresh) {
+    const refreshed = await tryRefresh();
+    if (refreshed) return request<T>(path, { ...opts, _retried: true });
+  }
+
+  if (!res.ok) {
+    throw new ApiError(res.status, await errorMessage(res));
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+async function errorMessage(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    if (typeof data?.detail === "string") return data.detail;
+    if (Array.isArray(data?.detail) && data.detail[0]?.msg) {
+      return data.detail[0].msg;
+    }
+    return JSON.stringify(data);
+  } catch {
+    return `Request failed (${res.status})`;
+  }
+}
+
+async function tryRefresh(): Promise<boolean> {
+  const refresh_token = tokenStore.refresh;
+  if (!refresh_token) return false;
+  try {
+    const res = await fetch("/api/v1/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token }),
+    });
+    if (!res.ok) return false;
+    tokenStore.set((await res.json()) as Tokens);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const api = {
+  // --- auth ---
+  signup: (email: string, password: string, full_name?: string) =>
+    request<Tokens>("/api/v1/auth/signup", {
+      method: "POST",
+      auth: false,
+      body: { email, password, full_name: full_name || null },
+    }),
+
+  login: (email: string, password: string) =>
+    request<Tokens>("/api/v1/auth/login", {
+      method: "POST",
+      auth: false,
+      body: { email, password },
+    }),
+
+  me: () => request<Me>("/api/v1/auth/me"),
+
+  // --- businesses ---
+  listBusinesses: () => request<Business[]>("/api/v1/businesses"),
+
+  createBusiness: (data: Partial<Business>) =>
+    request<Business>("/api/v1/businesses", { method: "POST", body: data }),
+
+  getBusiness: (id: string) => request<Business>(`/api/v1/businesses/${id}`),
+
+  // --- content ---
+  listContent: (businessId: string, filters?: { status?: string; channel?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.channel) params.set("channel", filters.channel);
+    const q = params.toString() ? `?${params.toString()}` : "";
+    return request<ContentItem[]>(
+      `/api/v1/businesses/${businessId}/content${q}`
+    );
+  },
+
+  updateContent: (
+    businessId: string,
+    itemId: string,
+    patch: { title?: string | null; body?: string }
+  ) =>
+    request<ContentItem>(
+      `/api/v1/businesses/${businessId}/content/${itemId}`,
+      { method: "PATCH", body: patch }
+    ),
+
+  repurpose: (businessId: string, idea: string) =>
+    request<RepurposeResult>(
+      `/api/v1/businesses/${businessId}/content/repurpose`,
+      { method: "POST", body: { idea } }
+    ),
+
+  approve: (businessId: string, itemId: string) =>
+    request<ContentItem>(
+      `/api/v1/businesses/${businessId}/content/${itemId}/approve`,
+      { method: "POST" }
+    ),
+
+  reject: (businessId: string, itemId: string) =>
+    request<ContentItem>(
+      `/api/v1/businesses/${businessId}/content/${itemId}/reject`,
+      { method: "POST" }
+    ),
+
+  // --- calendar ---
+  planCalendar: (businessId: string, timeframe: Timeframe, theme: string) =>
+    request<Plan>(`/api/v1/businesses/${businessId}/calendar/plan`, {
+      method: "POST",
+      body: { timeframe, theme },
+    }),
+
+  scheduleSlot: (
+    businessId: string,
+    slot: { channel: string; topic: string; scheduled_at: string }
+  ) =>
+    request<{ content_item: ContentItem; schedule: Schedule }>(
+      `/api/v1/businesses/${businessId}/calendar/schedule-slot`,
+      { method: "POST", body: { ...slot, content_type: "social_post" } }
+    ),
+
+  // --- integrations / accounts ---
+  listAccounts: (businessId: string) =>
+    request<SocialAccount[]>(
+      `/api/v1/businesses/${businessId}/integrations/accounts`
+    ),
+
+  connectAccount: (
+    businessId: string,
+    data: { platform: string; display_name: string; external_id?: string | null }
+  ) =>
+    request<SocialAccount>(
+      `/api/v1/businesses/${businessId}/integrations/accounts`,
+      { method: "POST", body: data }
+    ),
+
+  // Start the OAuth connect flow — returns the provider consent URL to redirect to.
+  startOAuth: (businessId: string, platform: string) =>
+    request<{ authorize_url: string }>(
+      `/api/v1/businesses/${businessId}/integrations/oauth/${platform}/start`,
+      { method: "POST" }
+    ),
+
+  // --- schedules ---
+  listSchedules: (businessId: string, status?: string) => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<Schedule[]>(
+      `/api/v1/businesses/${businessId}/schedules${q}`
+    );
+  },
+
+  createSchedule: (
+    businessId: string,
+    data: {
+      content_item_id: string;
+      social_account_id: string;
+      scheduled_at: string;
+      repost_interval_days?: number | null;
+    }
+  ) =>
+    request<Schedule>(`/api/v1/businesses/${businessId}/schedules`, {
+      method: "POST",
+      body: data,
+    }),
+
+  cancelSchedule: (businessId: string, scheduleId: string) =>
+    request<Schedule>(
+      `/api/v1/businesses/${businessId}/schedules/${scheduleId}/cancel`,
+      { method: "POST" }
+    ),
+
+  runDue: (businessId: string) =>
+    request<RunDueResult>(
+      `/api/v1/businesses/${businessId}/schedules/run-due`,
+      { method: "POST" }
+    ),
+
+  // --- reputation ---
+  syncReviews: (businessId: string, platform?: string) =>
+    request<{ fetched: number; new: number }>(
+      `/api/v1/businesses/${businessId}/reviews/sync`,
+      { method: "POST", body: { platform: platform ?? null } }
+    ),
+
+  listReviews: (
+    businessId: string,
+    filters?: { status?: string; sentiment?: string; needs_attention?: boolean }
+  ) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.sentiment) params.set("sentiment", filters.sentiment);
+    if (filters?.needs_attention) params.set("needs_attention", "true");
+    const q = params.toString() ? `?${params.toString()}` : "";
+    return request<Review[]>(`/api/v1/businesses/${businessId}/reviews${q}`);
+  },
+
+  generateReviewResponse: (businessId: string, reviewId: string) =>
+    request<Review>(
+      `/api/v1/businesses/${businessId}/reviews/${reviewId}/respond/generate`,
+      { method: "POST" }
+    ),
+
+  editReviewResponse: (businessId: string, reviewId: string, response_text: string) =>
+    request<Review>(
+      `/api/v1/businesses/${businessId}/reviews/${reviewId}/response`,
+      { method: "PATCH", body: { response_text } }
+    ),
+
+  postReviewResponse: (businessId: string, reviewId: string) =>
+    request<Review>(
+      `/api/v1/businesses/${businessId}/reviews/${reviewId}/respond`,
+      { method: "POST" }
+    ),
+
+  reputationReport: (businessId: string) =>
+    request<ReputationReport>(
+      `/api/v1/businesses/${businessId}/reputation/report`
+    ),
+
+  // --- analytics & insights ---
+  dashboard: (businessId: string) =>
+    request<Dashboard>(`/api/v1/businesses/${businessId}/analytics/dashboard`),
+
+  generateInsights: (businessId: string) =>
+    request<Insights>(`/api/v1/businesses/${businessId}/insights/generate`, {
+      method: "POST",
+    }),
+};
