@@ -26,6 +26,16 @@ celery_app.conf.update(
             "task": "app.workers.tasks.publish_due",
             "schedule": 60.0,
         },
+        # Autopilot: check hourly whether any tenant's campaign cadence is due.
+        "propose-campaigns-hourly": {
+            "task": "app.workers.tasks.propose_campaigns",
+            "schedule": 3600.0,
+        },
+        # Finish in-flight Veo renders so the browser doesn't have to poll.
+        "advance-video-jobs-every-30s": {
+            "task": "app.workers.tasks.advance_video_jobs",
+            "schedule": 30.0,
+        },
     },
 )
 

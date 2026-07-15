@@ -84,6 +84,17 @@ class ReviewStatus(str, Enum):
     RESPONDED = "responded"
 
 
+class CampaignStatus(str, Enum):
+    PROPOSED = "proposed"    # AI-drafted, awaiting approval (approve-first)
+    SCHEDULED = "scheduled"  # approved -> posts scheduled
+    REJECTED = "rejected"
+
+
+class CampaignSource(str, Enum):
+    MANUAL = "manual"        # a user asked for it
+    AUTOPILOT = "autopilot"  # proposed automatically on a cadence
+
+
 class ScheduleStatus(str, Enum):
     PENDING = "pending"        # queued, waiting for its scheduled time
     PUBLISHING = "publishing"  # picked up by the publish engine

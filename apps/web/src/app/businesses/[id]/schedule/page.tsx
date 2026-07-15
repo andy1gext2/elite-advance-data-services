@@ -1,21 +1,17 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import {
   CHANNEL_LABELS,
   PLATFORMS,
   PLATFORM_LABELS,
-  type Business,
   type ContentItem,
   type RunDueResult,
   type Schedule,
   type SocialAccount,
 } from "@/lib/types";
-import { AppShell } from "@/components/AppShell";
-import { BusinessTabs } from "@/components/BusinessTabs";
-import { Alert, Badge, Button, Card, Field, Input } from "@/components/ui";
+import { Alert, Badge, Button, Card, Field, Input, PageHeader } from "@/components/ui";
 
 const STATUS_TONE: Record<string, "green" | "red" | "amber" | "brand" | "default"> = {
   published: "green",
@@ -25,9 +21,36 @@ const STATUS_TONE: Record<string, "green" | "red" | "amber" | "brand" | "default
   canceled: "default",
 };
 
+// Connection-health badge styling for connected accounts.
+const CONN_TONE: Record<string, "green" | "amber" | "red" | "default"> = {
+  connected: "green",
+  expiring_soon: "amber",
+  needs_reauth: "red",
+  pending_approval: "default",
+};
+const CONN_LABEL: Record<string, string> = {
+  connected: "Connected",
+  expiring_soon: "Expiring soon",
+  needs_reauth: "Reconnect needed",
+  pending_approval: "Pending approval",
+};
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
 function nowLocalInput() {
   const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
+// Backend stores naive UTC; parse it as UTC so display/edit show true local time.
+function utcDate(iso: string) {
+  return new Date(/[Z+]/.test(iso) ? iso : iso + "Z");
+}
+
+function utcToLocalInput(iso: string) {
+  const d = utcDate(iso);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
     d.getHours()
   )}:${pad(d.getMinutes())}`;
@@ -45,7 +68,6 @@ export default function SchedulePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const [business, setBusiness] = useState<Business | null>(null);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [items, setItems] = useState<ContentItem[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -67,13 +89,11 @@ export default function SchedulePage({
   }, [id]);
 
   const loadAll = useCallback(async () => {
-    const [biz, accs, content, scheds] = await Promise.all([
-      api.getBusiness(id),
+    const [accs, content, scheds] = await Promise.all([
       api.listAccounts(id),
       api.listContent(id),
       api.listSchedules(id),
     ]);
-    setBusiness(biz);
     setAccounts(accs);
     setItems(content);
     setSchedules(scheds);
@@ -120,23 +140,15 @@ export default function SchedulePage({
   }
 
   return (
-    <AppShell>
-      <div className="mb-6 flex items-center gap-2 text-sm text-muted">
-        <Link href="/dashboard" className="hover:text-fg">
-          Dashboard
-        </Link>
-        <span>/</span>
-        <span className="text-fg">{business?.name ?? "…"}</span>
+    <>
+      <PageHeader
+        title="Scheduling & publishing"
+        subtitle="Connect accounts, schedule approved content, and run the publish engine."
+      />
+
+      <div className="mt-4">
+        <Alert>{error}</Alert>
       </div>
-
-      <BusinessTabs businessId={id} />
-
-      <h1 className="mt-6 text-2xl font-semibold">Scheduling & publishing</h1>
-      <p className="mt-1 text-sm text-muted">
-        Connect accounts, schedule approved content, and run the publish engine.
-      </p>
-
-      <Alert>{error}</Alert>
       {notice && (
         <div className="mt-4 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-600 dark:text-green-500">
           {notice}
@@ -182,50 +194,126 @@ export default function SchedulePage({
         </p>
       ) : (
         <div className="mt-4 grid gap-3">
-          {schedules.map((s) => {
-            const item = itemsById.get(s.content_item_id);
-            const account = accountsById.get(s.social_account_id);
-            return (
-              <Card key={s.id} className="flex items-start gap-4 p-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="brand">
-                      {account
-                        ? PLATFORM_LABELS[account.platform] ?? account.platform
-                        : "—"}
-                    </Badge>
-                    {account && (
-                      <span className="text-xs text-muted">
-                        {account.display_name}
-                      </span>
-                    )}
-                    <span className="ml-auto" />
-                    <Badge tone={STATUS_TONE[s.status] ?? "default"}>
-                      {s.status}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 truncate text-sm text-fg/90">
-                    {snippet(item)}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-                    <span>🗓 {new Date(s.scheduled_at).toLocaleString()}</span>
-                    {s.repost_interval_days && (
-                      <span>🔁 every {s.repost_interval_days}d</span>
-                    )}
-                    {s.attempts > 0 && <span>attempts: {s.attempts}</span>}
-                  </div>
-                </div>
-                {s.status === "pending" && (
-                  <Button variant="danger" onClick={() => onCancel(s)}>
-                    Cancel
-                  </Button>
-                )}
-              </Card>
-            );
-          })}
+          {schedules.map((s) => (
+            <ScheduledPostCard
+              key={s.id}
+              businessId={id}
+              schedule={s}
+              item={itemsById.get(s.content_item_id)}
+              account={accountsById.get(s.social_account_id)}
+              accounts={accounts}
+              onUpdated={(u) =>
+                setSchedules((list) => list.map((x) => (x.id === u.id ? u : x)))
+              }
+              onCancel={onCancel}
+              onError={setError}
+            />
+          ))}
         </div>
       )}
-    </AppShell>
+    </>
+  );
+}
+
+function ScheduledPostCard({
+  businessId,
+  schedule: s,
+  item,
+  account,
+  accounts,
+  onUpdated,
+  onCancel,
+  onError,
+}: {
+  businessId: string;
+  schedule: Schedule;
+  item: ContentItem | undefined;
+  account: SocialAccount | undefined;
+  accounts: SocialAccount[];
+  onUpdated: (s: Schedule) => void;
+  onCancel: (s: Schedule) => void;
+  onError: (msg: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [when, setWhen] = useState(() => utcToLocalInput(s.scheduled_at));
+  const [accountId, setAccountId] = useState(s.social_account_id);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch: { scheduled_at?: string; social_account_id?: string } = {
+        scheduled_at: new Date(when).toISOString(),
+      };
+      if (accountId !== s.social_account_id) patch.social_account_id = accountId;
+      onUpdated(await api.rescheduleSchedule(businessId, s.id, patch));
+      setEditing(false);
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Reschedule failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="brand">
+              {account ? PLATFORM_LABELS[account.platform] ?? account.platform : "—"}
+            </Badge>
+            {account && <span className="text-xs text-muted">{account.display_name}</span>}
+            <span className="ml-auto" />
+            <Badge tone={STATUS_TONE[s.status] ?? "default"}>{s.status}</Badge>
+          </div>
+          <p className="mt-2 truncate text-sm text-fg/90">{snippet(item)}</p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+            <span>🗓 {utcDate(s.scheduled_at).toLocaleString()}</span>
+            {s.repost_interval_days && <span>🔁 every {s.repost_interval_days}d</span>}
+            {s.attempts > 0 && <span>attempts: {s.attempts}</span>}
+          </div>
+        </div>
+        {s.status === "pending" && (
+          <div className="flex shrink-0 flex-col gap-2">
+            <Button variant="secondary" onClick={() => setEditing((v) => !v)}>
+              {editing ? "Close" : "Reschedule"}
+            </Button>
+            <Button variant="danger" onClick={() => onCancel(s)}>
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {editing && s.status === "pending" && (
+        <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <Field label="When">
+            <Input
+              type="datetime-local"
+              value={when}
+              onChange={(e) => setWhen(e.target.value)}
+            />
+          </Field>
+          <Field label="Account">
+            <select
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+            >
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {PLATFORM_LABELS[a.platform] ?? a.platform} · {a.display_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Button onClick={save} loading={busy}>
+            Save
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -255,6 +343,15 @@ function ConnectAccounts({
     }
   }
 
+  async function reconnect(p: string) {
+    try {
+      const { authorize_url } = await api.startOAuth(businessId, p);
+      window.location.href = authorize_url;
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Could not reconnect");
+    }
+  }
+
   return (
     <Card>
       <h2 className="font-semibold">Connected accounts</h2>
@@ -269,15 +366,26 @@ function ConnectAccounts({
           {accounts.map((a) => (
             <li
               key={a.id}
-              className="flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2"
+              className="flex items-center gap-3 rounded-lg border border-border bg-bg px-3 py-2"
             >
               <Badge tone="brand">
                 {PLATFORM_LABELS[a.platform] ?? a.platform}
               </Badge>
-              <span className="text-sm">{a.display_name}</span>
-              <span className="ml-auto">
-                <Badge tone="green">{a.status}</Badge>
-              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{a.display_name}</p>
+                <p className="truncate text-xs text-muted">{a.detail}</p>
+              </div>
+              {(a.connection === "needs_reauth" || a.connection === "expiring_soon") && (
+                <button
+                  onClick={() => reconnect(a.platform)}
+                  className="shrink-0 text-xs font-medium text-brand hover:underline"
+                >
+                  Reconnect
+                </button>
+              )}
+              <Badge tone={CONN_TONE[a.connection] ?? "default"}>
+                {CONN_LABEL[a.connection] ?? a.connection}
+              </Badge>
             </li>
           ))}
         </ul>

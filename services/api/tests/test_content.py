@@ -130,6 +130,72 @@ def test_edit_requires_a_field_and_editor_role(client):
     assert blocked.status_code == 403
 
 
+def test_model_tiering_routes_cheap_types_to_cheap_model(client):
+    h, bid = _owner(client, email="tiering@example.com")
+
+    def gen(content_type):
+        return client.post(
+            f"{API}/businesses/{bid}/content/generate",
+            json={"channel": "instagram", "content_type": content_type, "brief": "Fall sale"},
+            headers=h,
+        ).json()
+
+    # Cheap, short types route to the cheap tier (Haiku by default).
+    for ct in ("hashtags", "sms", "captions", "cta"):
+        assert gen(ct)["meta"]["model"] == "claude-haiku-4-5", ct
+
+    # High-value content stays on the default model (the mock's default id here).
+    for ct in ("social_post", "blog_article", "email"):
+        assert gen(ct)["meta"]["model"] != "claude-haiku-4-5", ct
+
+
+def test_generate_image_sets_image_url(client):
+    h, bid = _owner(client, email="image@example.com")
+    item = client.post(
+        f"{API}/businesses/{bid}/content/generate",
+        json={"channel": "instagram", "brief": "Autumn latte launch"}, headers=h,
+    ).json()
+    assert item["image_url"] is None
+
+    r = client.post(f"{API}/businesses/{bid}/content/{item['id']}/image", headers=h)
+    assert r.status_code == 200, r.text
+    updated = r.json()
+    # Image is stored via the storage layer and served under /media; prompt stored too.
+    assert updated["image_url"].startswith("/media/")
+    assert "Acme Coffee" in updated["image_prompt"]
+
+
+def test_approved_posts_become_brand_examples(client):
+    """Approving a post makes it a brand exemplar for future generations (learning)."""
+    import uuid
+    from app.core.db import get_db
+    from app.services import rag_service
+
+    h, bid = _owner(client, email="learn@example.com")
+    gen = client.post(
+        f"{API}/businesses/{bid}/content/generate",
+        json={"channel": "instagram", "brief": "Signature line: cozy autumn vibes"},
+        headers=h,
+    ).json()
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        # Draft (unapproved) content is NOT used as an exemplar.
+        assert rag_service.approved_examples(db, uuid.UUID(bid)) == []
+    finally:
+        db.close()
+
+    client.post(f"{API}/businesses/{bid}/content/{gen['id']}/approve", headers=h)
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        examples = rag_service.approved_examples(db, uuid.UUID(bid), channel="instagram")
+        # The mock echoes the brief into the body, so the phrase surfaces as an exemplar.
+        assert any("cozy autumn vibes" in e for e in examples)
+    finally:
+        db.close()
+
+
 def test_viewer_cannot_generate_but_can_read(client):
     owner_h, bid = _owner(client, email="owner3@example.com")
     # Add a viewer to the business.

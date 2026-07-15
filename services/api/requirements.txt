@@ -5,6 +5,7 @@ pydantic>=2.9
 pydantic-settings>=2.6
 email-validator>=2.2      # pydantic EmailStr
 python-dotenv>=1.0
+python-multipart>=0.0.9   # file uploads (UploadFile)
 
 # Auth & security
 pyjwt>=2.9
@@ -20,9 +21,16 @@ redis>=5.1
 # Async workers
 celery>=5.4
 
+# Object storage (used only when STORAGE_BACKEND=s3; lazy-imported)
+boto3>=1.35
+
 # AI providers (provider-agnostic layer; default: Anthropic)
 anthropic>=0.40
+# Image + video generation (used only when *_PROVIDER=gemini/veo; lazy-imported)
+google-genai>=0.3
+
+# HTTP client for real social OAuth connectors (Meta / Google; lazy-imported) + tests
+httpx>=0.27
 
 # Dev
-httpx>=0.27
 pytest>=8.3

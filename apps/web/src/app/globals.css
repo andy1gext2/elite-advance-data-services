@@ -6,6 +6,11 @@
    <alpha-value> works (e.g. bg-brand/10).
    Brand palette from the Elite Advance Data Services logo: deep navy on white. */
 :root {
+  /* Apple's SF Pro on Apple devices via -apple-system; Inter (its closest free
+     match, self-hosted) everywhere else. Mirrors Apple's own font stack. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    var(--font-inter), "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
   --bg: 248 250 252; /* slate-50 — near-white */
   --surface: 255 255 255; /* white */
   --border: 226 232 240; /* slate-200 */
@@ -35,7 +40,17 @@ body {
   background-color: rgb(var(--bg));
   color: rgb(var(--fg));
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Apple-style display type: large, semibold, tightly tracked, balanced wraps. */
+.display {
+  font-weight: 600;
+  letter-spacing: -0.028em;
+  line-height: 1.05;
+  text-wrap: balance;
 }
 
 html {

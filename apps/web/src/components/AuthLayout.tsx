@@ -1,6 +1,6 @@
 import { Card } from "./ui";
 import { ThemeToggle } from "./ThemeToggle";
-import { Logo } from "./Logo";
+import { LogoLockup } from "./Logo";
 
 export function AuthLayout({
   title,
@@ -17,7 +17,7 @@ export function AuthLayout({
         <ThemeToggle />
       </div>
       <div className="mb-8">
-        <Logo />
+        <LogoLockup className="h-24" />
       </div>
       <Card className="w-full max-w-sm">
         <h1 className="text-xl font-semibold">{title}</h1>

@@ -17,8 +17,15 @@ from app.schemas.content import (
     GenerateIn,
     RepurposeIn,
     RepurposeOut,
+    VideoJobOut,
 )
-from app.services import content_service
+from app.images.base import ImageProvider, ReferenceImage
+from app.images.registry import get_image_provider_dep
+from app.services import asset_service, content_service, image_service, video_service
+from app.storage.base import Storage
+from app.storage.registry import get_storage_dep
+from app.video.base import VideoProvider
+from app.video.registry import get_video_provider_dep
 
 router = APIRouter(prefix="/businesses/{business_id}/content", tags=["content"])
 
@@ -79,6 +86,15 @@ def list_content(
     )
 
 
+@router.get("/video-quota")
+def video_quota(
+    ctx: TenantContext = Depends(get_membership_ctx),
+    db: Session = Depends(get_db),
+) -> dict:
+    """The tenant's monthly video-render allowance (for the cost-guard confirm)."""
+    return video_service.quota(db, ctx.business)
+
+
 @router.get("/{item_id}", response_model=ContentItemOut)
 def get_content(
     item_id: uuid.UUID,
@@ -110,6 +126,84 @@ def update_content(
     return item
 
 
+@router.post("/{item_id}/image", response_model=ContentItemOut)
+def generate_image(
+    item_id: uuid.UUID,
+    asset_id: uuid.UUID | None = Query(default=None),
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    images: ImageProvider = Depends(get_image_provider_dep),
+    storage: Storage = Depends(get_storage_dep),
+    db: Session = Depends(get_db),
+) -> ContentItemOut:
+    """Generate an on-brand visual for this post. Pass `asset_id` to ground the
+    image on an uploaded product photo (mock placeholder until a real image
+    provider + key are configured)."""
+    try:
+        item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
+    except content_service.ContentNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
+
+    reference = None
+    if asset_id is not None:
+        try:
+            asset = asset_service.get_asset(db, business_id=ctx.business.id, asset_id=asset_id)
+        except asset_service.AssetNotFound:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product image not found")
+        data = storage.load(asset.storage_key)
+        if data:
+            reference = ReferenceImage(data=data, mime=asset.content_type)
+
+    item = image_service.generate_image(
+        db, provider=images, storage=storage, business=ctx.business, item=item, reference=reference
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/{item_id}/video", response_model=VideoJobOut, status_code=status.HTTP_202_ACCEPTED)
+def start_video(
+    item_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    video: VideoProvider = Depends(get_video_provider_dep),
+    db: Session = Depends(get_db),
+) -> VideoJobOut:
+    """Kick off an async video render for this post. Returns a job (status
+    'processing'); poll GET …/video until it succeeds. Real Veo takes ~1–3 min."""
+    try:
+        item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
+    except content_service.ContentNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
+    try:
+        job = video_service.start_video(db, provider=video, business=ctx.business, item=item)
+    except video_service.VideoQuotaExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Monthly video limit ({exc.limit}) reached. Upgrade your plan for more renders.",
+        )
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+@router.get("/{item_id}/video", response_model=VideoJobOut)
+def get_video(
+    item_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    video: VideoProvider = Depends(get_video_provider_dep),
+    storage: Storage = Depends(get_storage_dep),
+    db: Session = Depends(get_db),
+) -> VideoJobOut:
+    """Poll the latest video job for this post, advancing it if still processing."""
+    job = video_service.latest_job(db, business_id=ctx.business.id, content_item_id=item_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No video job for this post")
+    job = video_service.poll_video(db, provider=video, storage=storage, job=job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
 def _set_status(db: Session, ctx: TenantContext, item_id: uuid.UUID, new: ContentStatus):
     try:
         item = content_service.set_status(
@@ -128,7 +222,15 @@ def approve(
     ctx: TenantContext = Depends(require_role(Role.EDITOR)),
     db: Session = Depends(get_db),
 ) -> ContentItemOut:
-    return _set_status(db, ctx, item_id, ContentStatus.APPROVED)
+    """Approve the post and book it onto the calendar (schedules it where an
+    account is connected)."""
+    try:
+        item = content_service.approve_item(db, business_id=ctx.business.id, item_id=item_id)
+    except content_service.ContentNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 @router.post("/{item_id}/reject", response_model=ContentItemOut)
@@ -138,3 +240,18 @@ def reject(
     db: Session = Depends(get_db),
 ) -> ContentItemOut:
     return _set_status(db, ctx, item_id, ContentStatus.REJECTED)
+
+
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_content(
+    item_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    db: Session = Depends(get_db),
+) -> None:
+    """Delete a post for good — removes it from the library, the calendar, and any
+    schedules. This is what 'reject' does."""
+    try:
+        content_service.delete_item(db, business_id=ctx.business.id, item_id=item_id)
+    except content_service.ContentNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
+    db.commit()

@@ -81,28 +81,31 @@ export default function LandingPage() {
             </span>
           </Reveal>
           <Reveal delay={80}>
-            <h1 className="mt-6 text-5xl font-bold leading-[1.05] tracking-tight sm:text-6xl md:text-7xl">
-              Your entire marketing
-              <br />
-              team, powered by <span className="shimmer-text">AI</span>.
+            <h1 className="display mt-7 text-6xl sm:text-7xl md:text-[5.5rem]">
+              Your entire marketing team,{" "}
+              <span className="shimmer-text">powered by AI</span>.
             </h1>
           </Reveal>
           <Reveal delay={160}>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted sm:text-xl">
-              Elite Advance Data Services creates your content, plans your
-              calendar, publishes everywhere, and manages your reputation — so
-              you can run your business instead of your marketing.
+            <p className="mx-auto mt-7 max-w-2xl text-balance text-xl leading-relaxed text-muted sm:text-2xl">
+              Elite Advance creates your content, plans your calendar, publishes
+              everywhere, and manages your reputation — so you can run your
+              business instead of your marketing.
             </p>
           </Reveal>
           <Reveal delay={240}>
-            <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link href="/signup">
-                <Button className="px-6 py-3 text-base">Start free</Button>
+            <div className="mt-10 flex flex-col items-center justify-center gap-x-8 gap-y-4 sm:flex-row">
+              <Link
+                href="/signup"
+                className="rounded-full bg-brand px-8 py-3.5 text-base font-medium text-brand-fg shadow-lg shadow-brand/20 transition-transform hover:scale-[1.03]"
+              >
+                Start free
               </Link>
-              <a href="#features">
-                <Button variant="secondary" className="px-6 py-3 text-base">
-                  See how it works
-                </Button>
+              <a
+                href="#features"
+                className="text-base font-medium text-brand transition-transform hover:translate-x-0.5"
+              >
+                See how it works&nbsp;›
               </a>
             </div>
           </Reveal>
@@ -138,7 +141,7 @@ export default function LandingPage() {
           <p className="text-sm font-semibold uppercase tracking-widest text-brand">
             The platform
           </p>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
+          <h2 className="display mt-3 text-4xl sm:text-5xl">
             Everything a marketing department does. Automated.
           </h2>
         </Reveal>
@@ -153,10 +156,10 @@ export default function LandingPage() {
                 <p className="text-sm font-semibold uppercase tracking-widest text-brand">
                   {eyebrow}
                 </p>
-                <h3 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+                <h3 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
                   {title}
                 </h3>
-                <p className="mt-5 text-lg text-muted">{body}</p>
+                <p className="mt-5 text-lg leading-relaxed text-muted">{body}</p>
                 <Link
                   href="/signup"
                   className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-transform hover:translate-x-0.5"
@@ -179,10 +182,10 @@ export default function LandingPage() {
       >
         <div className="mx-auto max-w-4xl text-center">
           <Reveal>
-            <h2 className="text-4xl font-bold leading-tight tracking-tight sm:text-6xl">
+            <h2 className="display text-4xl sm:text-6xl">
               Built to replace your entire stack.
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-brand-fg/70">
+            <p className="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-brand-fg/70">
               Provider-agnostic AI, isolated per-platform connectors, and a
               real-time dashboard — engineered for thousands of businesses and
               millions of posts.
@@ -207,7 +210,7 @@ export default function LandingPage() {
           <p className="text-sm font-semibold uppercase tracking-widest text-brand">
             Pricing
           </p>
-          <h2 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
+          <h2 className="display mt-3 text-4xl sm:text-5xl">
             Simple plans that scale with you.
           </h2>
         </Reveal>
@@ -247,7 +250,7 @@ export default function LandingPage() {
                 <Link href="/signup" className="mt-6 block">
                   <Button
                     variant={p.featured ? "primary" : "secondary"}
-                    className="w-full"
+                    className="w-full rounded-full"
                   >
                     {p.price === "Custom" ? "Contact sales" : "Start free"}
                   </Button>
@@ -260,17 +263,20 @@ export default function LandingPage() {
 
       {/* ── Closing CTA ── */}
       <section className="px-6 py-24 sm:py-32">
-        <Reveal className="mx-auto max-w-3xl rounded-3xl border border-border bg-surface px-8 py-16 text-center shadow-2xl shadow-brand/5">
-          <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">
+        <Reveal className="mx-auto max-w-3xl rounded-[2rem] border border-border bg-surface px-8 py-20 text-center shadow-2xl shadow-brand/5">
+          <h2 className="display text-4xl sm:text-5xl">
             Hire your AI marketing team today.
           </h2>
-          <p className="mx-auto mt-5 max-w-xl text-lg text-muted">
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-muted">
             Set up your business in minutes. Generate your first campaign before
             your coffee gets cold.
           </p>
-          <div className="mt-8 flex justify-center">
-            <Link href="/signup">
-              <Button className="px-8 py-3 text-base">Start free</Button>
+          <div className="mt-9 flex justify-center">
+            <Link
+              href="/signup"
+              className="rounded-full bg-brand px-8 py-3.5 text-base font-medium text-brand-fg shadow-lg shadow-brand/20 transition-transform hover:scale-[1.03]"
+            >
+              Start free
             </Link>
           </div>
         </Reveal>

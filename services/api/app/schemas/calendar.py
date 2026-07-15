@@ -11,7 +11,7 @@ from app.models.enums import Channel, ContentType
 from app.schemas.content import ContentItemOut
 from app.schemas.scheduling import ScheduleOut
 
-Timeframe = Literal["week", "month", "quarter", "year"]
+Timeframe = Literal["day", "week", "month", "quarter", "year"]
 
 
 class PlanIn(BaseModel):

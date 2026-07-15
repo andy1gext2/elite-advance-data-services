@@ -22,6 +22,8 @@ _SAMPLE_REVIEWS = [
 
 
 class MockConnector(PlatformConnector):
+    live = False  # simulated dev connector, not a real provider
+
     def __init__(self, platform: str) -> None:
         self.platform = platform
 
@@ -50,9 +52,18 @@ class MockConnector(PlatformConnector):
     def exchange_code(self, *, code: str, redirect_uri: str) -> dict:
         return {
             "access_token": f"mock-oauth-token-{uuid.uuid4().hex}",
+            "refresh_token": f"mock-refresh-{uuid.uuid4().hex}",
             "external_id": f"{self.platform}_{uuid.uuid4().hex[:10]}",
             "display_name": f"{self.platform.replace('_', ' ').title()} Account",
-            "expires_at": None,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+        }
+
+    def refresh(self, *, refresh_token: str | None, access_token: str) -> dict:
+        """Simulate a token refresh so the refresh flow is testable without a broker."""
+        return {
+            "access_token": f"mock-oauth-token-{uuid.uuid4().hex}",
+            "refresh_token": refresh_token,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
         }
 
     def fetch_reviews(self, *, account_token: str) -> list[dict]:

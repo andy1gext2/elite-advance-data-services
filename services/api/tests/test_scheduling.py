@@ -62,6 +62,104 @@ def test_future_schedule_not_published(client):
     assert run == {"due": 0, "published": 0, "failed": 0}
 
 
+def test_account_connection_status(client):
+    h, bid, _, _ = _setup(client, email="status@example.com")
+    accts = client.get(f"{API}/businesses/{bid}/integrations/accounts", headers=h).json()
+    a = accts[0]
+    # Dev mock connector -> connected, but flagged simulated (not a live provider).
+    assert a["connection"] == "connected"
+    assert a["live"] is False
+    assert a["can_publish"] is True
+    assert "simulated" in a["detail"].lower()
+
+
+def test_expired_account_needs_reauth(client):
+    import uuid as u
+    from datetime import datetime, timedelta, timezone
+
+    from app.core.db import get_db
+    from app.services import scheduling_service
+
+    h, bid, _, _ = _setup(client, email="reauth@example.com")
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        # Expired token, no refresh token -> can't auto-renew -> reconnect needed.
+        scheduling_service.upsert_oauth_account(
+            db, business_id=u.UUID(bid), platform="facebook", access_token="old",
+            display_name="@fb", expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    accts = client.get(f"{API}/businesses/{bid}/integrations/accounts", headers=h).json()
+    fb = next(a for a in accts if a["platform"] == "facebook")
+    assert fb["connection"] == "needs_reauth"
+
+
+def test_expired_token_is_refreshed(client):
+    import uuid as u
+    from datetime import datetime, timedelta, timezone
+
+    from app.core.db import get_db
+    from app.services import scheduling_service
+
+    h, bid, _, _ = _setup(client, email="refresh@example.com")
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        # A connected account whose access token expired an hour ago.
+        acct = scheduling_service.upsert_oauth_account(
+            db, business_id=u.UUID(bid), platform="facebook",
+            access_token="old-token", refresh_token="r1", display_name="@fb",
+            expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        db.commit()
+        old_enc = acct.access_token_enc
+
+        token = scheduling_service.ensure_fresh_token(db, acct)
+        db.commit()
+
+        # The mock connector mints a new token + a future expiry.
+        assert token != "old-token"
+        assert acct.access_token_enc != old_enc
+        naive_utcnow = datetime.now(timezone.utc).replace(tzinfo=None)
+        assert acct.expires_at is not None and acct.expires_at > naive_utcnow
+    finally:
+        db.close()
+
+
+def test_reschedule_pending_changes_time_and_account(client):
+    h, bid, item_id, acct_id = _setup(client, email="resched@example.com")
+    sched = client.post(
+        f"{API}/businesses/{bid}/schedules",
+        json={"content_item_id": item_id, "social_account_id": acct_id, "scheduled_at": FUTURE},
+        headers=h,
+    ).json()
+    # A second account to move the post to.
+    acct2 = client.post(
+        f"{API}/businesses/{bid}/integrations/accounts",
+        json={"platform": "linkedin", "display_name": "@acme-li"}, headers=h,
+    ).json()["id"]
+
+    moved = client.patch(
+        f"{API}/businesses/{bid}/schedules/{sched['id']}",
+        json={"scheduled_at": "2999-06-06T15:30:00Z", "social_account_id": acct2},
+        headers=h,
+    )
+    assert moved.status_code == 200, moved.text
+    data = moved.json()
+    assert data["social_account_id"] == acct2
+    assert data["scheduled_at"].startswith("2999-06-06")
+
+    # A canceled schedule can't be moved.
+    client.post(f"{API}/businesses/{bid}/schedules/{sched['id']}/cancel", headers=h)
+    blocked = client.patch(
+        f"{API}/businesses/{bid}/schedules/{sched['id']}",
+        json={"scheduled_at": FUTURE}, headers=h,
+    )
+    assert blocked.status_code == 409
+
+
 def test_repost_reschedules_next(client):
     h, bid, item_id, acct_id = _setup(client)
     client.post(

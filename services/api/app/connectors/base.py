@@ -32,10 +32,16 @@ class PublishResult:
 
 class PlatformConnector(ABC):
     platform: str = "base"
+    # True for real providers; the mock sets this False (simulated dev connector).
+    live: bool = True
 
     @abstractmethod
     def publish(self, *, account_token: str, body: str, meta: dict) -> PublishResult:
         ...
+
+    def supports_publish(self) -> bool:
+        """Whether this connector can actually publish yet (vs pending approval)."""
+        return True
 
     # Read paths land in later phases (reputation, analytics).
     def fetch_reviews(self, *, account_token: str) -> list[dict]:
@@ -50,3 +56,8 @@ class PlatformConnector(ABC):
 
     def exchange_code(self, *, code: str, redirect_uri: str) -> dict:
         raise NotSupported(f"{self.platform}: OAuth not implemented")
+
+    def refresh(self, *, refresh_token: str | None, access_token: str) -> dict | None:
+        """Return a fresh {access_token, expires_at, refresh_token?} or None if the
+        provider's token isn't refreshable / this connector doesn't support it."""
+        return None

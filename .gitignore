@@ -27,7 +27,10 @@ yarn-error.log*
 # ── Data / infra ──────────────────────────────
 *.sqlite3
 *.db
+*.db-wal
+*.db-shm
 pgdata/
+services/api/media/
 
 # ── OS / editor ───────────────────────────────
 .DS_Store

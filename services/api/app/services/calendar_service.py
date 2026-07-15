@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.base import AIRequest, TaskType
+from app.ai.model_policy import select_model
 from app.ai.router import AIRouter
 from app.models.ai_usage import AiUsage
 from app.models.business import Business
@@ -40,11 +41,25 @@ BEST_TIMES: dict[str, str] = {
 ROTATION = [Channel.INSTAGRAM, Channel.FACEBOOK, Channel.LINKEDIN, Channel.X, Channel.THREADS]
 
 # (slot count, day spacing) per horizon. Bounded to keep AI calls predictable.
+# "day" is a one-time burst: one unique post per platform, all scheduled today.
 TIMEFRAMES: dict[str, tuple[int, int]] = {
+    "day": (len(ROTATION), 0),
     "week": (3, 2),
     "month": (8, 3),
     "quarter": (8, 11),
     "year": (12, 30),
+}
+
+# Campaign cadence: (number of posting days, days between them). Every posting day
+# hits ALL platforms at once, spaced every other day (spacing 2). Day counts are
+# capped so a whole-campaign draft stays a bounded number of AI generations
+# (days * len(ROTATION) posts) rather than exploding for longer horizons.
+CAMPAIGN_CADENCE: dict[str, tuple[int, int]] = {
+    "day": (1, 0),
+    "week": (3, 2),
+    "month": (6, 2),
+    "quarter": (10, 3),
+    "year": (14, 7),
 }
 
 
@@ -75,6 +90,7 @@ def plan(
             prompt=f"{theme} (idea {i + 1} of {count})",
             business_id=str(business.id),
             context={"business": context, "channel": channel.value, "timeframe": timeframe},
+            model=select_model(task=TaskType.CALENDAR),
         ))
         db.add(AiUsage(
             business_id=business.id, module=TaskType.CALENDAR.value,
@@ -87,6 +103,50 @@ def plan(
             "recommended_time": BEST_TIMES.get(channel.value, "10:00"),
             "topic": resp.text,
         })
+    db.flush()
+    return {"timeframe": timeframe, "slots": slots}
+
+
+def campaign_plan(
+    db: Session, *, router: AIRouter, business: Business, timeframe: str,
+    theme: str, start: date | None = None, channels: list[Channel] | None = None,
+) -> dict:
+    """Plan a campaign that posts to every target platform on each posting day, with
+    days spaced every other day. `channels` defaults to the full rotation; pass the
+    business's connected platforms so the studio only generates for what's connected.
+    One AI idea is generated per posting day and shared across the platforms (each
+    channel gets its own tailored post downstream). Returns days * len(channels) slots."""
+    if timeframe not in CAMPAIGN_CADENCE:
+        raise ValueError(f"unknown timeframe: {timeframe}")
+    _check_quota(db, business)
+
+    targets = channels or ROTATION
+    days, spacing = CAMPAIGN_CADENCE[timeframe]
+    start = start or date.today()
+    context = build_business_context(business)
+
+    slots = []
+    for d in range(days):
+        slot_date = start + timedelta(days=spacing * d)
+        resp = router.handle(AIRequest(
+            task=TaskType.CALENDAR,
+            prompt=f"{theme} (posting day {d + 1} of {days})",
+            business_id=str(business.id),
+            context={"business": context, "timeframe": timeframe},
+            model=select_model(task=TaskType.CALENDAR),
+        ))
+        db.add(AiUsage(
+            business_id=business.id, module=TaskType.CALENDAR.value,
+            provider=resp.provider, model=resp.model,
+            input_tokens=resp.input_tokens, output_tokens=resp.output_tokens,
+        ))
+        for channel in targets:
+            slots.append({
+                "date": slot_date.isoformat(),
+                "channel": channel.value,
+                "recommended_time": BEST_TIMES.get(channel.value, "10:00"),
+                "topic": resp.text,
+            })
     db.flush()
     return {"timeframe": timeframe, "slots": slots}
 

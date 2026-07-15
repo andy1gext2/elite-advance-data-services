@@ -13,6 +13,7 @@ from app.models.enums import Role
 from app.schemas.scheduling import (
     BulkScheduleIn,
     ConnectAccountIn,
+    RescheduleIn,
     RunDueOut,
     ScheduleIn,
     ScheduleOut,
@@ -21,6 +22,14 @@ from app.schemas.scheduling import (
 from app.services import scheduling_service
 
 router = APIRouter(prefix="/businesses/{business_id}", tags=["scheduling"])
+
+
+def _account_out(account) -> SocialAccountOut:
+    return SocialAccountOut(
+        id=account.id, platform=account.platform, display_name=account.display_name,
+        external_id=account.external_id, status=account.status,
+        **scheduling_service.account_status(account),
+    )
 
 
 # ── Integrations / accounts ─────────────────────────
@@ -36,7 +45,7 @@ def connect_account(
     )
     db.commit()
     db.refresh(account)
-    return account
+    return _account_out(account)
 
 
 @router.get("/integrations/accounts", response_model=list[SocialAccountOut])
@@ -44,7 +53,10 @@ def list_accounts(
     ctx: TenantContext = Depends(get_membership_ctx),
     db: Session = Depends(get_db),
 ) -> list[SocialAccountOut]:
-    return scheduling_service.list_accounts(db, business_id=ctx.business.id)
+    return [
+        _account_out(a)
+        for a in scheduling_service.list_accounts(db, business_id=ctx.business.id)
+    ]
 
 
 # ── Schedules ───────────────────────────────────────
@@ -99,6 +111,27 @@ def list_schedules(
     return scheduling_service.list_schedules(
         db, business_id=ctx.business.id, start=start, end=end, status=status_filter
     )
+
+
+@router.patch("/schedules/{schedule_id}", response_model=ScheduleOut)
+def reschedule_schedule(
+    schedule_id: uuid.UUID,
+    body: RescheduleIn,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    db: Session = Depends(get_db),
+) -> ScheduleOut:
+    try:
+        schedule = scheduling_service.reschedule(
+            db, business_id=ctx.business.id, schedule_id=schedule_id,
+            scheduled_at=body.scheduled_at, social_account_id=body.social_account_id,
+        )
+    except scheduling_service.NotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule or account not found")
+    except scheduling_service.InvalidSchedule as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    db.commit()
+    db.refresh(schedule)
+    return schedule
 
 
 @router.post("/schedules/{schedule_id}/cancel", response_model=ScheduleOut)

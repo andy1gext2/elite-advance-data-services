@@ -47,6 +47,24 @@ export interface ContentItem {
   body: string;
   meta: Record<string, unknown>;
   status: string;
+  image_url: string | null;
+  image_prompt: string | null;
+  video_url: string | null;
+}
+
+export interface VideoJob {
+  id: string;
+  content_item_id: string;
+  status: "processing" | "succeeded" | "failed";
+  video_url: string | null;
+  error: string | null;
+}
+
+export interface VideoQuota {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  unlimited: boolean;
 }
 
 export interface ContentIdea {
@@ -66,6 +84,12 @@ export interface SocialAccount {
   display_name: string;
   external_id: string | null;
   status: string;
+  // Live connection health.
+  connection: "connected" | "expiring_soon" | "needs_reauth" | "pending_approval";
+  can_publish: boolean;
+  live: boolean;
+  expires_at: string | null;
+  detail: string;
 }
 
 export interface Schedule {
@@ -120,6 +144,17 @@ export interface Review {
   needs_attention: boolean;
   response_text: string | null;
   reviewed_at: string | null;
+}
+
+export interface Asset {
+  id: string;
+  kind: string;
+  filename: string;
+  name: string | null;
+  description: string | null;
+  content_type: string;
+  url: string;
+  created_at: string;
 }
 
 export interface KeywordCount {
@@ -178,7 +213,53 @@ export interface Insights {
   recommendations: string[];
 }
 
-export type Timeframe = "week" | "month" | "quarter" | "year";
+export type Timeframe = "day" | "week" | "month" | "quarter" | "year";
+
+// A dated campaign post for the calendar bird's-eye view.
+export interface CampaignCalendarItem {
+  id: string;
+  campaign_id: string;
+  campaign_name: string;
+  channel: string;
+  scheduled_at: string; // ISO datetime
+  status: string;
+  content_item_id: string | null;
+  title: string | null;
+  body: string | null;
+}
+
+export interface CampaignItem {
+  id: string;
+  channel: string;
+  scheduled_at: string;
+  status: string;
+  content_item_id: string | null;
+  social_account_id: string | null;
+  body: string | null;
+  title: string | null;
+  account_name: string | null;
+}
+
+export interface Campaign {
+  id: string;
+  name: string;
+  timeframe: string;
+  status: string;
+  source: string;
+  created_at: string;
+}
+
+export interface CampaignDetail extends Campaign {
+  items: CampaignItem[];
+}
+
+export interface AutopilotConfig {
+  autopilot_enabled: boolean;
+  autopilot_theme: string | null;
+  autopilot_frequency_days: number;
+  autopilot_timeframe: string;
+  autopilot_last_run_at: string | null;
+}
 
 export interface PlanSlot {
   date: string; // YYYY-MM-DD
@@ -192,12 +273,13 @@ export interface Plan {
   slots: PlanSlot[];
 }
 
-// Enum value lists (kept in sync with app/models/enums.py).
+// Enum value lists (kept in sync with app/models/enums.py). Ordered by popularity
+// so the most-used platforms (Instagram, Facebook, X) surface first in the UI.
 export const CHANNELS = [
   "instagram",
   "facebook",
-  "linkedin",
   "x",
+  "linkedin",
   "threads",
   "google_business",
   "blog",
@@ -206,6 +288,12 @@ export const CHANNELS = [
   "video",
   "generic",
 ] as const;
+
+// Sort key for ordering posts/channels by popularity (lower = more popular).
+export function channelRank(channel: string): number {
+  const i = (CHANNELS as readonly string[]).indexOf(channel);
+  return i === -1 ? CHANNELS.length : i;
+}
 
 export const CHANNEL_LABELS: Record<string, string> = {
   instagram: "Instagram",

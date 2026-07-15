@@ -12,6 +12,10 @@ os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("JWT_SECRET", "test-secret")
 # Valid Fernet key (urlsafe base64 of 32 bytes) so token encryption works in tests.
 os.environ.setdefault("FERNET_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
+# Never hit a real image/video API in tests — force the mocks even if .env sets a
+# live provider.
+os.environ["IMAGE_PROVIDER"] = "mock"
+os.environ["VIDEO_PROVIDER"] = "mock"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

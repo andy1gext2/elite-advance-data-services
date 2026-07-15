@@ -132,6 +132,28 @@ export function Badge({
   );
 }
 
+// Consistent page top used across the workspace: title, optional subtitle, and
+// an optional right-aligned action (e.g. a primary button).
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
 export function Alert({ children }: { children: React.ReactNode }) {
   if (!children) return null;
   return (

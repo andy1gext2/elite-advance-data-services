@@ -36,7 +36,8 @@ def _month_of(dt: datetime | None) -> tuple[int, int] | None:
 
 def _weekly(rows, keyfn, weeks: int = 8) -> list[dict]:
     """Count rows per ISO week (Monday-anchored) for the last `weeks` weeks."""
-    today = date.today()
+    # UTC to match created_at/reviewed_at (avoids a local-vs-UTC week-boundary skew).
+    today = datetime.now(timezone.utc).date()
     this_week = today - timedelta(days=today.weekday())
     buckets = [this_week - timedelta(weeks=i) for i in range(weeks - 1, -1, -1)]
     counts: dict[date, int] = {b: 0 for b in buckets}
@@ -105,7 +106,7 @@ def dashboard(db: Session, *, business_id: uuid.UUID) -> dict:
     content_this_month = sum(1 for c in content if _month_of(c.created_at) == this_m)
     content_last_month = sum(1 for c in content if _month_of(c.created_at) == prev_m)
 
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     week_start = today - timedelta(days=today.weekday())
     content_this_week = sum(
         1 for c in content

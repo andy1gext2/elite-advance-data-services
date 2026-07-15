@@ -23,6 +23,12 @@ class SocialAccountOut(BaseModel):
     display_name: str
     external_id: str | None
     status: str
+    # Live connection health (computed by the route).
+    connection: str = "connected"  # connected | expiring_soon | needs_reauth | pending_approval
+    can_publish: bool = True
+    live: bool = True              # real connector vs simulated dev mock
+    expires_at: datetime | None = None
+    detail: str = ""
 
 
 class ScheduleIn(BaseModel):
@@ -34,6 +40,12 @@ class ScheduleIn(BaseModel):
 
 class BulkScheduleIn(BaseModel):
     items: list[ScheduleIn] = Field(min_length=1, max_length=200)
+
+
+class RescheduleIn(BaseModel):
+    """Edit a pending post's timing and/or destination account."""
+    scheduled_at: datetime | None = None
+    social_account_id: uuid.UUID | None = None
 
 
 class ScheduleOut(BaseModel):

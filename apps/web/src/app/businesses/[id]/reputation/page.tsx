@@ -1,21 +1,18 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import {
   PLATFORM_LABELS,
-  type Business,
   type ReputationReport,
   type Review,
 } from "@/lib/types";
-import { AppShell } from "@/components/AppShell";
-import { BusinessTabs } from "@/components/BusinessTabs";
 import {
   Alert,
   Badge,
   Button,
   Card,
+  PageHeader,
   Textarea,
 } from "@/components/ui";
 
@@ -40,7 +37,6 @@ export default function ReputationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const [business, setBusiness] = useState<Business | null>(null);
   const [report, setReport] = useState<ReputationReport | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState("");
@@ -65,9 +61,8 @@ export default function ReputationPage({
   }, [id]);
 
   useEffect(() => {
-    api.getBusiness(id).then(setBusiness).catch(() => {});
     loadReport().catch(() => {});
-  }, [id, loadReport]);
+  }, [loadReport]);
 
   useEffect(() => {
     loadReviews().catch((e) =>
@@ -94,30 +89,20 @@ export default function ReputationPage({
   }
 
   return (
-    <AppShell>
-      <div className="mb-6 flex items-center gap-2 text-sm text-muted">
-        <Link href="/dashboard" className="hover:text-fg">
-          Dashboard
-        </Link>
-        <span>/</span>
-        <span className="text-fg">{business?.name ?? "…"}</span>
+    <>
+      <PageHeader
+        title="Reputation"
+        subtitle="Monitor reviews, gauge sentiment, and reply with AI."
+        action={
+          <Button onClick={onSync} loading={syncing}>
+            {syncing ? "Syncing…" : "⟳ Sync reviews"}
+          </Button>
+        }
+      />
+
+      <div className="mt-4">
+        <Alert>{error}</Alert>
       </div>
-
-      <BusinessTabs businessId={id} />
-
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Reputation</h1>
-          <p className="mt-1 text-sm text-muted">
-            Monitor reviews, gauge sentiment, and reply with AI.
-          </p>
-        </div>
-        <Button onClick={onSync} loading={syncing}>
-          {syncing ? "Syncing…" : "⟳ Sync reviews"}
-        </Button>
-      </div>
-
-      <Alert>{error}</Alert>
 
       {report && <ReportSummary report={report} />}
 
@@ -174,7 +159,7 @@ export default function ReputationPage({
           ))}
         </div>
       )}
-    </AppShell>
+    </>
   );
 }
 

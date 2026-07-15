@@ -66,6 +66,76 @@ export function HBars({ data }: { data: { label: string; value: number }[] }) {
   );
 }
 
+// Part-to-whole share of a single measure across categories. One brand hue,
+// stepped by share (largest = solid, smaller = faded) — magnitude, not a rainbow.
+// The legend carries each label + count + %, so identity is never color-alone.
+export function Donut({ data }: { data: { label: string; value: number }[] }) {
+  const items = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
+  const total = items.reduce((sum, d) => sum + d.value, 0);
+  if (total === 0) return <p className="text-sm text-muted">No data yet.</p>;
+
+  const r = 42;
+  const C = 2 * Math.PI * r;
+  const gap = items.length > 1 ? 1.5 : 0; // px of surface ring between slices
+  let offset = 0;
+  const arcs = items.map((d, i) => {
+    const frac = d.value / total;
+    const len = Math.max(frac * C - gap, 0);
+    // Largest slice fully opaque; each smaller step fades toward the ground.
+    const opacity = Math.max(1 - i * 0.16, 0.4);
+    const arc = { len, dash: `${len} ${C - len}`, offset: -offset, opacity };
+    offset += frac * C;
+    return arc;
+  });
+
+  return (
+    <div className="flex items-center gap-5">
+      <svg viewBox="0 0 100 100" className="h-32 w-32 -rotate-90 shrink-0">
+        <circle cx="50" cy="50" r={r} fill="none" className="stroke-border" strokeWidth="15" />
+        {arcs.map((a, i) => (
+          <circle
+            key={i}
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            className="stroke-brand"
+            strokeWidth="15"
+            strokeDasharray={a.dash}
+            strokeDashoffset={a.offset}
+            strokeOpacity={a.opacity}
+          />
+        ))}
+        <text
+          x="50"
+          y="50"
+          transform="rotate(90 50 50)"
+          textAnchor="middle"
+          dominantBaseline="central"
+          className="fill-fg text-[15px] font-semibold"
+        >
+          {total}
+        </text>
+      </svg>
+      <ul className="min-w-0 flex-1 space-y-1.5">
+        {items.map((d, i) => (
+          <li key={d.label} className="flex items-center gap-2 text-sm">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand"
+              style={{ opacity: Math.max(1 - i * 0.16, 0.4) }}
+            />
+            <span className="min-w-0 flex-1 truncate capitalize text-muted">{d.label}</span>
+            <span className="tabular-nums">{d.value}</span>
+            <span className="w-9 text-right text-xs tabular-nums text-muted">
+              {Math.round((d.value / total) * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function SentimentBar({ s }: { s: Record<string, number> }) {
   const pos = s.positive || 0;
   const neu = s.neutral || 0;

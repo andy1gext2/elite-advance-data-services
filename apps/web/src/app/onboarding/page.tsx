@@ -4,12 +4,27 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { PLATFORM_LABELS } from "@/lib/types";
 import { AppShell } from "@/components/AppShell";
+import { PlatformLogo } from "@/components/PostPreview";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
+
+// Meta (Facebook + Instagram) and Google Business first — the platforms clients
+// most want, and the ones with real OAuth connectors.
+const CONNECT_PLATFORMS = [
+  "facebook",
+  "instagram",
+  "google_business",
+  "linkedin",
+  "x",
+  "threads",
+] as const;
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { refreshMe } = useAuth();
+  const [step, setStep] = useState<"details" | "connect">("details");
+  const [businessId, setBusinessId] = useState("");
   const [form, setForm] = useState({
     name: "",
     industry: "",
@@ -21,6 +36,7 @@ export default function OnboardingPage() {
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [connecting, setConnecting] = useState("");
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -31,13 +47,13 @@ export default function OnboardingPage() {
     setError("");
     setBusy(true);
     try {
-      // Strip empties so the backend keeps its defaults.
       const payload = Object.fromEntries(
         Object.entries(form).filter(([, v]) => v.trim() !== "")
       );
       const business = await api.createBusiness(payload);
       await refreshMe();
-      router.replace(`/businesses/${business.id}/content`);
+      setBusinessId(business.id);
+      setStep("connect");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
     } finally {
@@ -45,10 +61,86 @@ export default function OnboardingPage() {
     }
   }
 
+  async function connect(platform: string) {
+    setError("");
+    setConnecting(platform);
+    try {
+      // Hand off to the provider's consent screen; the callback returns to the
+      // workspace with the account connected.
+      const { authorize_url } = await api.startOAuth(businessId, platform);
+      window.location.href = authorize_url;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not start connect");
+      setConnecting("");
+    }
+  }
+
+  if (step === "connect") {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-2xl">
+          <p className="text-xs font-medium uppercase tracking-wide text-brand">
+            Step 2 of 2
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">Connect your accounts</h1>
+          <p className="mt-1 text-sm text-muted">
+            Link the social accounts for <span className="font-medium text-fg">{form.name}</span>.
+            The studio then generates content for exactly these platforms — and can
+            publish on your behalf once connected.
+          </p>
+
+          <Alert>{error}</Alert>
+
+          <Card className="mt-6">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {CONNECT_PLATFORMS.map((p) => (
+                <div
+                  key={p}
+                  className="flex items-center gap-3 rounded-lg border border-border p-3"
+                >
+                  <PlatformLogo channel={p} size={28} />
+                  <span className="flex-1 text-sm font-medium">
+                    {PLATFORM_LABELS[p] ?? p}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    onClick={() => connect(p)}
+                    loading={connecting === p}
+                  >
+                    Connect
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-muted">
+              You&apos;ll approve access on the platform, then land back in your
+              workspace. You can connect more anytime from the Schedule tab.
+            </p>
+          </Card>
+
+          <div className="mt-4 flex justify-end gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => router.replace(`/businesses/${businessId}/content`)}
+            >
+              Skip for now
+            </Button>
+            <Button onClick={() => router.replace(`/businesses/${businessId}/content`)}>
+              Go to workspace →
+            </Button>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="mx-auto max-w-2xl">
-        <h1 className="text-2xl font-semibold">Tell us about your business</h1>
+        <p className="text-xs font-medium uppercase tracking-wide text-brand">
+          Step 1 of 2
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold">Tell us about your business</h1>
         <p className="mt-1 text-sm text-muted">
           This is the brand context the AI uses to write on your behalf. You can
           refine it later.
@@ -122,7 +214,7 @@ export default function OnboardingPage() {
                 Cancel
               </Button>
               <Button type="submit" loading={busy}>
-                Create business
+                Continue →
               </Button>
             </div>
           </form>

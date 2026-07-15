@@ -85,6 +85,7 @@ def complete(db, *, platform: str, code: str, business_id: uuid.UUID):
         business_id=business_id,
         platform=platform,
         access_token=tokens["access_token"],
+        refresh_token=tokens.get("refresh_token"),
         external_id=tokens.get("external_id"),
         display_name=tokens.get("display_name"),
         expires_at=tokens.get("expires_at"),

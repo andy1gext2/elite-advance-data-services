@@ -2,7 +2,12 @@
 // under /api/*, which next.config.mjs proxies to the backend (no CORS).
 
 import type {
+  Asset,
+  AutopilotConfig,
   Business,
+  Campaign,
+  CampaignCalendarItem,
+  CampaignDetail,
   ContentItem,
   Dashboard,
   Insights,
@@ -16,6 +21,8 @@ import type {
   SocialAccount,
   Timeframe,
   Tokens,
+  VideoJob,
+  VideoQuota,
 } from "./types";
 
 const ACCESS_KEY = "eads.access";
@@ -160,6 +167,56 @@ export const api = {
       { method: "PATCH", body: patch }
     ),
 
+  generateImage: (businessId: string, itemId: string, assetId?: string) => {
+    const q = assetId ? `?asset_id=${assetId}` : "";
+    return request<ContentItem>(
+      `/api/v1/businesses/${businessId}/content/${itemId}/image${q}`,
+      { method: "POST" }
+    );
+  },
+
+  // Kick off an async video render; poll getVideoJob until it succeeds/fails.
+  generateVideo: (businessId: string, itemId: string) =>
+    request<VideoJob>(
+      `/api/v1/businesses/${businessId}/content/${itemId}/video`,
+      { method: "POST" }
+    ),
+
+  getVideoJob: (businessId: string, itemId: string) =>
+    request<VideoJob>(`/api/v1/businesses/${businessId}/content/${itemId}/video`),
+
+  videoQuota: (businessId: string) =>
+    request<VideoQuota>(`/api/v1/businesses/${businessId}/content/video-quota`),
+
+  // --- assets (product images) ---
+  listAssets: (businessId: string) =>
+    request<Asset[]>(`/api/v1/businesses/${businessId}/assets`),
+
+  uploadAsset: async (
+    businessId: string,
+    file: File,
+    meta?: { name?: string; description?: string }
+  ): Promise<Asset> => {
+    const form = new FormData();
+    form.append("file", file);
+    if (meta?.name) form.append("name", meta.name);
+    if (meta?.description) form.append("description", meta.description);
+    const res = await fetch(`/api/v1/businesses/${businessId}/assets`, {
+      method: "POST",
+      headers: tokenStore.access
+        ? { Authorization: `Bearer ${tokenStore.access}` }
+        : {},
+      body: form,
+    });
+    if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+    return (await res.json()) as Asset;
+  },
+
+  deleteAsset: (businessId: string, assetId: string) =>
+    request<void>(`/api/v1/businesses/${businessId}/assets/${assetId}`, {
+      method: "DELETE",
+    }),
+
   repurpose: (businessId: string, idea: string) =>
     request<RepurposeResult>(
       `/api/v1/businesses/${businessId}/content/repurpose`,
@@ -177,6 +234,11 @@ export const api = {
       `/api/v1/businesses/${businessId}/content/${itemId}/reject`,
       { method: "POST" }
     ),
+
+  deleteContent: (businessId: string, itemId: string) =>
+    request<void>(`/api/v1/businesses/${businessId}/content/${itemId}`, {
+      method: "DELETE",
+    }),
 
   // --- calendar ---
   planCalendar: (businessId: string, timeframe: Timeframe, theme: string) =>
@@ -237,6 +299,16 @@ export const api = {
       method: "POST",
       body: data,
     }),
+
+  rescheduleSchedule: (
+    businessId: string,
+    scheduleId: string,
+    patch: { scheduled_at?: string; social_account_id?: string }
+  ) =>
+    request<Schedule>(
+      `/api/v1/businesses/${businessId}/schedules/${scheduleId}`,
+      { method: "PATCH", body: patch }
+    ),
 
   cancelSchedule: (businessId: string, scheduleId: string) =>
     request<Schedule>(
@@ -299,5 +371,51 @@ export const api = {
   generateInsights: (businessId: string) =>
     request<Insights>(`/api/v1/businesses/${businessId}/insights/generate`, {
       method: "POST",
+    }),
+
+  // --- campaigns & autopilot ---
+  listCampaigns: (businessId: string, status?: string) => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<Campaign[]>(`/api/v1/businesses/${businessId}/campaigns${q}`);
+  },
+
+  getCampaign: (businessId: string, id: string) =>
+    request<CampaignDetail>(`/api/v1/businesses/${businessId}/campaigns/${id}`),
+
+  proposeCampaign: (
+    businessId: string,
+    theme: string,
+    timeframe: Timeframe,
+    productAssetId?: string
+  ) =>
+    request<CampaignDetail>(`/api/v1/businesses/${businessId}/campaigns/propose`, {
+      method: "POST",
+      body: { theme, timeframe, product_asset_id: productAssetId ?? null },
+    }),
+
+  campaignCalendar: (businessId: string) =>
+    request<CampaignCalendarItem[]>(
+      `/api/v1/businesses/${businessId}/campaigns/calendar`
+    ),
+
+  approveCampaign: (businessId: string, id: string) =>
+    request<CampaignDetail>(
+      `/api/v1/businesses/${businessId}/campaigns/${id}/approve`,
+      { method: "POST" }
+    ),
+
+  rejectCampaign: (businessId: string, id: string) =>
+    request<CampaignDetail>(
+      `/api/v1/businesses/${businessId}/campaigns/${id}/reject`,
+      { method: "POST" }
+    ),
+
+  getAutopilot: (businessId: string) =>
+    request<AutopilotConfig>(`/api/v1/businesses/${businessId}/autopilot`),
+
+  setAutopilot: (businessId: string, cfg: AutopilotConfig) =>
+    request<AutopilotConfig>(`/api/v1/businesses/${businessId}/autopilot`, {
+      method: "PUT",
+      body: cfg,
     }),
 };

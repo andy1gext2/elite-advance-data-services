@@ -48,6 +48,19 @@ class ContentItemOut(BaseModel):
     body: str
     meta: dict
     status: str
+    image_url: str | None = None
+    image_prompt: str | None = None
+    video_url: str | None = None
+
+
+class VideoJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    content_item_id: uuid.UUID
+    status: str  # processing | succeeded | failed
+    video_url: str | None = None
+    error: str | None = None
 
 
 class ContentIdeaOut(BaseModel):

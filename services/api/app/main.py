@@ -9,14 +9,19 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api import (
     analytics,
+    assets,
     auth,
     businesses,
     calendar,
+    campaigns,
     content,
     oauth,
     reputation,
@@ -60,6 +65,14 @@ app.include_router(calendar.router, prefix="/api/v1")
 app.include_router(reputation.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(oauth.router, prefix="/api/v1")
+app.include_router(campaigns.router, prefix="/api/v1")
+app.include_router(assets.router, prefix="/api/v1")
+
+# Serve locally-stored uploads + generated images (dev). In production, files live
+# in S3/CDN and this mount is unused.
+if settings.storage_backend.lower() == "local":
+    os.makedirs(settings.media_root, exist_ok=True)
+    app.mount("/media", StaticFiles(directory=settings.media_root), name="media")
 
 
 @app.get("/health", tags=["system"])

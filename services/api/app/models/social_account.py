@@ -20,7 +20,8 @@ class SocialAccount(BaseModel):
     platform: Mapped[str] = mapped_column(String(32), nullable=False)
     external_id: Mapped[str | None] = mapped_column(String(128))
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    # Fernet-encrypted OAuth access token — never stored or logged in plaintext.
+    # Fernet-encrypted OAuth tokens — never stored or logged in plaintext.
     access_token_enc: Mapped[str | None] = mapped_column(Text)
+    refresh_token_enc: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="connected", nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

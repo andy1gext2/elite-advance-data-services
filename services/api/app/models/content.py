@@ -45,6 +45,11 @@ class ContentItem(BaseModel):
     status: Mapped[str] = mapped_column(
         String(32), default=ContentStatus.DRAFT.value, nullable=False
     )
+    # AI-generated visual (hosted URL or data: URI) + the prompt used to make it.
+    image_url: Mapped[str | None] = mapped_column(Text)
+    image_prompt: Mapped[str | None] = mapped_column(Text)
+    # AI-generated video (hosted URL), rendered asynchronously via a VideoJob.
+    video_url: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )

@@ -46,7 +46,7 @@ export function LandingNav() {
           <ThemeToggle />
           {me ? (
             <Link href="/dashboard">
-              <Button>Dashboard</Button>
+              <Button className="rounded-full">Dashboard</Button>
             </Link>
           ) : (
             <>
@@ -57,7 +57,7 @@ export function LandingNav() {
                 Sign in
               </Link>
               <Link href="/signup">
-                <Button>Get started</Button>
+                <Button className="rounded-full">Get started</Button>
               </Link>
             </>
           )}

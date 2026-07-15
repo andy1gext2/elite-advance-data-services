@@ -65,10 +65,10 @@ def connect_account(
 def upsert_oauth_account(
     db: Session, *, business_id: uuid.UUID, platform: str, access_token: str,
     external_id: str | None = None, display_name: str | None = None,
-    expires_at: datetime | None = None,
+    expires_at: datetime | None = None, refresh_token: str | None = None,
 ) -> SocialAccount:
     """Store (or refresh) a connected account after an OAuth exchange. One account
-    per (business, platform) — re-authing updates the encrypted token in place."""
+    per (business, platform) — re-authing updates the encrypted tokens in place."""
     account = db.scalar(
         select(SocialAccount).where(
             SocialAccount.business_id == business_id,
@@ -79,14 +79,46 @@ def upsert_oauth_account(
         account = SocialAccount(business_id=business_id, platform=platform)
         db.add(account)
     account.access_token_enc = encrypt(access_token)
+    if refresh_token:
+        account.refresh_token_enc = encrypt(refresh_token)
     if external_id:
         account.external_id = external_id
     if display_name:
         account.display_name = display_name
     account.status = "connected"
-    account.expires_at = expires_at
+    account.expires_at = _to_naive_utc(expires_at) if expires_at else None
     db.flush()
     return account
+
+
+def ensure_fresh_token(db: Session, account: SocialAccount) -> str:
+    """Return the account's access token, refreshing it first if it's expired (or
+    about to). Uses the platform connector's refresh (Google refresh-token grant,
+    Meta long-lived-token re-exchange); no-op for tokens that don't expire."""
+    token = decrypt(account.access_token_enc) if account.access_token_enc else ""
+    exp = account.expires_at
+    if exp is None:
+        return token
+    if exp.tzinfo is not None:
+        exp = exp.astimezone(timezone.utc).replace(tzinfo=None)
+    if exp > _utcnow() + timedelta(minutes=5):
+        return token  # still fresh
+
+    refresh_tok = decrypt(account.refresh_token_enc) if account.refresh_token_enc else None
+    try:
+        result = get_connector(account.platform).refresh(
+            refresh_token=refresh_tok, access_token=token
+        )
+    except Exception:  # noqa: BLE001 - a refresh failure must not crash publishing
+        result = None
+    if result and result.get("access_token"):
+        token = result["access_token"]
+        account.access_token_enc = encrypt(token)
+        if result.get("refresh_token"):
+            account.refresh_token_enc = encrypt(result["refresh_token"])
+        account.expires_at = _to_naive_utc(result["expires_at"]) if result.get("expires_at") else None
+        db.flush()
+    return token
 
 
 def list_accounts(db: Session, *, business_id: uuid.UUID) -> list[SocialAccount]:
@@ -94,6 +126,44 @@ def list_accounts(db: Session, *, business_id: uuid.UUID) -> list[SocialAccount]
         select(SocialAccount).where(SocialAccount.business_id == business_id)
         .order_by(SocialAccount.created_at)
     ).all())
+
+
+def account_status(account: SocialAccount) -> dict:
+    """Live health of a connected account for the UI: is the token valid, does this
+    platform publish yet, and is it a real connector or the dev mock."""
+    connector = get_connector(account.platform)
+    live = getattr(connector, "live", True)
+    can_publish = connector.supports_publish()
+
+    exp = account.expires_at
+    if exp is not None and exp.tzinfo is not None:
+        exp = exp.astimezone(timezone.utc).replace(tzinfo=None)
+    now = _utcnow()
+    has_refresh = bool(account.refresh_token_enc)
+
+    if account.status != "connected":
+        state, detail = "needs_reauth", "Disconnected — reconnect this account."
+    elif exp is not None and exp <= now and not has_refresh:
+        state, detail = "needs_reauth", "Session expired — reconnect this account."
+    elif exp is not None and exp <= now + timedelta(days=3):
+        state = "expiring_soon"
+        detail = (
+            "Access renews automatically."
+            if has_refresh else "Expiring soon — reconnect to keep publishing."
+        )
+    elif not can_publish:
+        state, detail = "pending_approval", "Connected. Publishing here is pending platform API approval."
+    else:
+        state = "connected"
+        detail = "Connected and ready to publish." if live else "Connected (simulated dev connector)."
+
+    return {
+        "connection": state,
+        "can_publish": can_publish,
+        "live": live,
+        "expires_at": account.expires_at,
+        "detail": detail,
+    }
 
 
 # ── Scheduling ──────────────────────────────────────
@@ -155,6 +225,24 @@ def list_schedules(
     return list(db.scalars(stmt.order_by(Schedule.scheduled_at)).all())
 
 
+def reschedule(
+    db: Session, *, business_id: uuid.UUID, schedule_id: uuid.UUID,
+    scheduled_at: datetime | None = None, social_account_id: uuid.UUID | None = None,
+) -> Schedule:
+    """Edit a not-yet-published post's timing and/or destination account. Only a
+    PENDING schedule can be moved (published/publishing/canceled are locked)."""
+    schedule = _load_scoped(db, Schedule, business_id, schedule_id)
+    if schedule.status != ScheduleStatus.PENDING.value:
+        raise InvalidSchedule(f"cannot reschedule a {schedule.status} schedule")
+    if scheduled_at is not None:
+        schedule.scheduled_at = _to_naive_utc(scheduled_at)
+    if social_account_id is not None:
+        _load_scoped(db, SocialAccount, business_id, social_account_id)
+        schedule.social_account_id = social_account_id
+    db.flush()
+    return schedule
+
+
 def cancel(db: Session, *, business_id: uuid.UUID, schedule_id: uuid.UUID) -> Schedule:
     schedule = _load_scoped(db, Schedule, business_id, schedule_id)
     if schedule.status in (ScheduleStatus.PUBLISHED.value, ScheduleStatus.PUBLISHING.value):
@@ -187,7 +275,7 @@ def run_due(
         item = db.get(ContentItem, schedule.content_item_id)
         account = db.get(SocialAccount, schedule.social_account_id)
         connector = get_connector(account.platform)
-        token = decrypt(account.access_token_enc) if account.access_token_enc else ""
+        token = ensure_fresh_token(db, account)  # refresh if the token is stale
 
         result = connector.publish(
             account_token=token, body=item.body if item else "",

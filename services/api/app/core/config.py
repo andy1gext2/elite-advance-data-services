@@ -39,8 +39,46 @@ class Settings(BaseSettings):
     # AI
     ai_default_provider: str = "anthropic"
     ai_default_model: str = "claude-opus-4-8"
+    # Model tiering: route short, low-stakes generations to a cheaper model to
+    # cut cost without hurting the high-value output. Set enabled=False to send
+    # everything to the default model.
+    ai_cheap_model: str = "claude-haiku-4-5"
+    ai_tiering_enabled: bool = True
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
+
+    # Image generation (provider-agnostic; default "mock" runs keyless with a
+    # stylized placeholder). Set image_provider=gemini + gemini_api_key to go live.
+    image_provider: str = "mock"
+    image_model: str = "gemini-2.5-flash-image"
+    gemini_api_key: str | None = None
+
+    # Video generation (async; default "mock" runs keyless). Set video_provider=veo
+    # + a PAID Gemini API key (reuses gemini_api_key) to go live. Veo needs billing
+    # enabled — a free AI-Studio key / consumer Google One plan won't have access.
+    video_provider: str = "mock"
+    video_model: str = "veo-3.1-fast-generate-preview"
+
+    # Social OAuth. Real Meta (Facebook/Instagram) + Google Business connectors
+    # activate automatically when these are set; otherwise the mock consent flow is
+    # used. Real connect also needs the redirect URI registered with each provider
+    # (see api_base_url + docs/integrations.md) and platform app review.
+    meta_app_id: str | None = None
+    meta_app_secret: str | None = None
+    meta_graph_version: str = "v21.0"
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+
+    # File storage (product photos + generated images). "local" writes to disk and
+    # serves under /media (dev); "s3" uploads to S3/S3-compatible (R2, etc.).
+    storage_backend: str = "local"
+    media_root: str = "./media"
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+    s3_endpoint_url: str | None = None  # for S3-compatible providers
+    s3_public_base: str | None = None   # CDN / public base URL
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
 
     @property
     def is_production(self) -> bool:

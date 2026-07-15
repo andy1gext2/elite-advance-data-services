@@ -49,7 +49,7 @@ CONTENT_TYPE_GUIDE: dict[str, str] = {
 class ContentModule:
     task_name = "content"
 
-    def _system(self, biz: dict) -> str:
+    def _system(self, biz: dict, examples: list[str] | None = None) -> str:
         parts = [
             "You are an expert marketing manager writing on behalf of a business.",
             "Write professional, on-brand marketing content optimized for the target platform.",
@@ -68,6 +68,14 @@ class ContentModule:
             val = biz.get(key)
             if val:
                 parts.append(f"{label}: {val}")
+        if examples:
+            parts.append(
+                "\nThe business owner has APPROVED these past posts. Learn their voice, "
+                "rhythm, structure, and personality, and make new content feel consistent "
+                "with them — echo the style, never copy any of them verbatim:"
+            )
+            for i, ex in enumerate(examples, 1):
+                parts.append(f"[Approved example {i}]\n{ex}")
         return "\n".join(parts)
 
     def _user_prompt(self, channel: str, content_type: str, brief: str) -> str:
@@ -88,10 +96,11 @@ class ContentModule:
         biz = ctx.get("business", {})
         channel = ctx.get("channel", Channel.GENERIC.value)
         content_type = ctx.get("content_type", ContentType.SOCIAL_POST.value)
+        examples = ctx.get("approved_examples") or []
 
         refined = replace(
             request,
-            system=self._system(biz),
+            system=self._system(biz, examples),
             prompt=self._user_prompt(channel, content_type, request.prompt),
             max_tokens=MAX_TOKENS.get(content_type, request.max_tokens),
         )
