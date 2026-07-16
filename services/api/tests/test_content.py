@@ -196,6 +196,35 @@ def test_approved_posts_become_brand_examples(client):
         db.close()
 
 
+def test_image_quota_guard(client):
+    import uuid as u
+    from app.core.db import get_db
+    from app.models.business import Business
+
+    h, bid = _owner(client, email="imgquota@example.com")
+    item = client.post(
+        f"{API}/businesses/{bid}/content/generate",
+        json={"channel": "instagram", "brief": "Latte art"}, headers=h,
+    ).json()
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        db.get(Business, u.UUID(bid)).plan.image_monthly_quota = 1
+        db.commit()
+    finally:
+        db.close()
+
+    assert client.get(f"{API}/businesses/{bid}/content/image-quota", headers=h).json() == {
+        "used": 0, "limit": 1, "remaining": 1, "unlimited": False,
+    }
+    # First image allowed; the second is blocked by the image cost guard.
+    assert client.post(f"{API}/businesses/{bid}/content/{item['id']}/image", headers=h).status_code == 200
+    assert client.post(f"{API}/businesses/{bid}/content/{item['id']}/image", headers=h).status_code == 402
+    # Images meter separately — they don't burn the text/content quota.
+    q = client.get(f"{API}/businesses/{bid}/content/image-quota", headers=h).json()
+    assert q["used"] == 1 and q["remaining"] == 0
+
+
 def test_viewer_cannot_generate_but_can_read(client):
     owner_h, bid = _owner(client, email="owner3@example.com")
     # Add a viewer to the business.

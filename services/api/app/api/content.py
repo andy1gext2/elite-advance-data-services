@@ -17,7 +17,10 @@ from app.schemas.content import (
     GenerateIn,
     RepurposeIn,
     RepurposeOut,
+    VideoCreditsIn,
     VideoJobOut,
+    VideoScriptOut,
+    VideoStartIn,
 )
 from app.images.base import ImageProvider, ReferenceImage
 from app.images.registry import get_image_provider_dep
@@ -91,8 +94,30 @@ def video_quota(
     ctx: TenantContext = Depends(get_membership_ctx),
     db: Session = Depends(get_db),
 ) -> dict:
-    """The tenant's monthly video-render allowance (for the cost-guard confirm)."""
+    """The tenant's monthly video-render allowance + credits (for the cost-guard confirm)."""
     return video_service.quota(db, ctx.business)
+
+
+@router.post("/video-credits")
+def buy_video_credits(
+    body: VideoCreditsIn,
+    ctx: TenantContext = Depends(require_role(Role.ADMIN)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Add paid video-render credits. Placeholder for the billing/Stripe hook — for
+    now it grants the credits directly. Admin+ only. Returns the updated allowance."""
+    video_service.add_credits(db, ctx.business, body.quantity)
+    db.commit()
+    return video_service.quota(db, ctx.business)
+
+
+@router.get("/image-quota")
+def image_quota(
+    ctx: TenantContext = Depends(get_membership_ctx),
+    db: Session = Depends(get_db),
+) -> dict:
+    """The tenant's monthly image-generation allowance."""
+    return image_service.quota(db, ctx.business)
 
 
 @router.get("/{item_id}", response_model=ContentItemOut)
@@ -143,39 +168,75 @@ def generate_image(
     except content_service.ContentNotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
 
+    # Ground on the explicitly-chosen product, else the post's own campaign product,
+    # so a product post's image always features that product.
+    aid = asset_id if asset_id is not None else item.product_asset_id
     reference = None
-    if asset_id is not None:
+    if aid is not None:
         try:
-            asset = asset_service.get_asset(db, business_id=ctx.business.id, asset_id=asset_id)
+            asset = asset_service.get_asset(db, business_id=ctx.business.id, asset_id=aid)
         except asset_service.AssetNotFound:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product image not found")
-        data = storage.load(asset.storage_key)
-        if data:
-            reference = ReferenceImage(data=data, mime=asset.content_type)
+            if asset_id is not None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product image not found")
+            asset = None  # the campaign's product was deleted — generate ungrounded
+        if asset is not None:
+            data = storage.load(asset.storage_key)
+            if data:
+                reference = ReferenceImage(data=data, mime=asset.content_type)
 
-    item = image_service.generate_image(
-        db, provider=images, storage=storage, business=ctx.business, item=item, reference=reference
-    )
+    try:
+        item = image_service.generate_image(
+            db, provider=images, storage=storage, business=ctx.business, item=item, reference=reference
+        )
+    except image_service.ImageQuotaExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Monthly image limit ({exc.limit}) reached. Upgrade your plan for more.",
+        )
     db.commit()
     db.refresh(item)
     return item
 
 
+@router.post("/{item_id}/video/script", response_model=VideoScriptOut)
+def write_video_script(
+    item_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    ai: AIRouter = Depends(get_ai_router),
+    db: Session = Depends(get_db),
+) -> VideoScriptOut:
+    """Have Claude write the 8-second video vision for this post (to preview/edit
+    before rendering). Does not render or consume the video quota."""
+    try:
+        item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
+    except content_service.ContentNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
+    script = video_service.generate_script(db, router=ai, business=ctx.business, item=item)
+    db.commit()
+    return VideoScriptOut(prompt=script)
+
+
 @router.post("/{item_id}/video", response_model=VideoJobOut, status_code=status.HTTP_202_ACCEPTED)
 def start_video(
     item_id: uuid.UUID,
+    body: VideoStartIn | None = None,
     ctx: TenantContext = Depends(require_role(Role.EDITOR)),
     video: VideoProvider = Depends(get_video_provider_dep),
+    ai: AIRouter = Depends(get_ai_router),
     db: Session = Depends(get_db),
 ) -> VideoJobOut:
-    """Kick off an async video render for this post. Returns a job (status
-    'processing'); poll GET …/video until it succeeds. Real Veo takes ~1–3 min."""
+    """Kick off an async video render for this post. Uses the edited vision in `prompt`
+    if provided; otherwise Claude writes the 8-second shot brief. Veo executes it.
+    Returns a job (status 'processing'); poll GET …/video until it succeeds."""
     try:
         item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
     except content_service.ContentNotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
     try:
-        job = video_service.start_video(db, provider=video, business=ctx.business, item=item)
+        job = video_service.start_video(
+            db, provider=video, router=ai, business=ctx.business, item=item,
+            script=body.prompt if body else None,
+        )
     except video_service.VideoQuotaExceeded as exc:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,

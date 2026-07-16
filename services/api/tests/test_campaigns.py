@@ -97,6 +97,38 @@ def test_product_grounds_the_campaign(client):
     ).status_code == 404
 
 
+def test_campaign_product_auto_grounds_image(client):
+    import io
+    h, bid = _owner(client, email="autoground@example.com")
+    png = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+        "890000000d49444154789c6360000002000100ffff03000006000557bfabd400"
+        "00000049454e44ae426082"
+    )
+    asset = client.post(
+        f"{API}/businesses/{bid}/assets",
+        files={"file": ("tee.png", io.BytesIO(png), "image/png")},
+        data={"name": "Summer Tee", "description": "Soft cotton crew neck"}, headers=h,
+    ).json()
+    camp = client.post(
+        f"{API}/businesses/{bid}/campaigns/propose",
+        json={"theme": "New tee drop", "timeframe": "day", "product_asset_id": asset["id"]},
+        headers=h,
+    ).json()
+    cid = camp["items"][0]["content_item_id"]
+
+    # The generated post remembers the product it promotes.
+    ci = client.get(f"{API}/businesses/{bid}/content/{cid}", headers=h).json()
+    assert ci["product_asset_id"] == asset["id"]
+
+    # Generating its image WITHOUT passing asset_id still grounds on the product.
+    r = client.post(f"{API}/businesses/{bid}/content/{cid}/image", headers=h)
+    assert r.status_code == 200, r.text
+    img = client.get(r.json()["image_url"])
+    assert img.status_code == 200
+    assert "\U0001F4E6" in img.text  # mock marks product-grounded images with 📦
+
+
 def test_campaign_calendar_lists_dated_posts(client):
     h, bid = _owner(client, email="campcal@example.com")
     client.post(
@@ -112,6 +144,18 @@ def test_campaign_calendar_lists_dated_posts(client):
     assert e["channel"] and e["scheduled_at"] and e["body"]
     # content_item_id lets the calendar open the post for editing.
     assert e["content_item_id"]
+
+
+def test_campaign_starts_on_chosen_date(client):
+    h, bid = _owner(client, email="startdate@example.com")
+    camp = client.post(
+        f"{API}/businesses/{bid}/campaigns/propose",
+        json={"theme": "Spring launch", "timeframe": "week", "start_date": "2030-03-04"},
+        headers=h,
+    ).json()
+    dates = sorted({i["scheduled_at"][:10] for i in camp["items"]})
+    # Every-other-day cadence from the chosen start.
+    assert dates == ["2030-03-04", "2030-03-06", "2030-03-08"]
 
 
 def test_reject_deletes_post_and_calendar_entry(client):

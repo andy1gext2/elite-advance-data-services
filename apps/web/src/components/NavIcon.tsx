@@ -44,6 +44,12 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M12 14v7" />
     </>
   ),
+  billing: (
+    <>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+    </>
+  ),
 };
 
 export function NavIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {

@@ -15,6 +15,7 @@ class TaskType(str, Enum):
     """What the AI Router classifies an incoming request into -> specialized module."""
     CONTENT = "content"
     CALENDAR = "calendar"
+    VIDEO_SCRIPT = "video_script"
     MARKETING_STRATEGY = "marketing_strategy"
     REVIEW_RESPONSE = "review_response"
     SENTIMENT = "sentiment"

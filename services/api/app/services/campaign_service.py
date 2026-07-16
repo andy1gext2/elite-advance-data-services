@@ -8,7 +8,7 @@ they're waiting for approval automatically. Nothing publishes without human sign
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -94,6 +94,7 @@ def propose(
     db: Session, *, router: AIRouter, business: Business, theme: str,
     timeframe: str = "week", source: CampaignSource = CampaignSource.MANUAL,
     created_by: uuid.UUID | None = None, product: Asset | None = None,
+    start: date | None = None,
 ) -> Campaign:
     """Draft a full campaign for approval: plan -> generate content per slot ->
     resolve accounts. When a product is given, its name + description steer both the
@@ -105,7 +106,7 @@ def propose(
     plan = calendar_service.campaign_plan(
         db, router=router, business=business, timeframe=timeframe,
         theme=f"{theme}.{note}" if note else theme,
-        channels=targets or None,
+        channels=targets or None, start=start,
     )
 
     campaign = Campaign(
@@ -131,6 +132,9 @@ def propose(
             )
         except content_service.AiQuotaExceeded:
             break
+        if product is not None:
+            item.product_asset_id = product.id  # so its image auto-grounds on the product
+            db.flush()
         account = _account_for(db, business.id, channel)
         db.add(CampaignItem(
             campaign_id=campaign.id,

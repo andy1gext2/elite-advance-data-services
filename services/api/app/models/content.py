@@ -37,6 +37,10 @@ class ContentItem(BaseModel):
     idea_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("content_ideas.id", ondelete="SET NULL")
     )
+    # The product this post promotes — auto-grounds its generated image.
+    product_asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL")
+    )
     channel: Mapped[str] = mapped_column(String(32), nullable=False)
     content_type: Mapped[str] = mapped_column(String(32), nullable=False)
     title: Mapped[str | None] = mapped_column(String(255))

@@ -24,6 +24,9 @@ export function VideoButton({
   const [rendering, setRendering] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [quota, setQuota] = useState<VideoQuota | null>(null);
+  const [buying, setBuying] = useState(false);
+  const [vision, setVision] = useState("");
+  const [loadingVision, setLoadingVision] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(
@@ -35,19 +38,55 @@ export function VideoButton({
 
   function openConfirm() {
     setQuota(null);
+    setVision("");
     setConfirming(true);
     api.videoQuota(businessId).then(setQuota).catch(() => {});
   }
 
-  const outOfQuota =
-    !!quota && !quota.unlimited && quota.remaining !== null && quota.remaining <= 0;
+  // Ask Claude to write the 8-second vision so the owner can see + edit it before rendering.
+  async function loadVision() {
+    setLoadingVision(true);
+    onError("");
+    try {
+      const { prompt } = await api.generateVideoScript(businessId, itemId);
+      setVision(prompt);
+    } catch (e) {
+      onError(e instanceof ApiError ? e.message : "Could not write the vision");
+    } finally {
+      setLoadingVision(false);
+    }
+  }
+
+  const monthlyLeft =
+    quota && !quota.unlimited && quota.remaining !== null ? quota.remaining : Infinity;
+  const credits = quota?.credits ?? 0;
+  // Blocked only when both the monthly allowance AND credits are used up.
+  const blocked = !!quota && !quota.unlimited && monthlyLeft <= 0 && credits <= 0;
+  const usesCredit = !!quota && !quota.unlimited && monthlyLeft <= 0 && credits > 0;
+
+  async function buyCredits() {
+    setBuying(true);
+    try {
+      // Live billing -> Stripe checkout; dev (no Stripe) -> grants directly.
+      const { url } = await api.billingCreditsCheckout(businessId);
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+      setQuota(await api.videoQuota(businessId));
+    } catch (e) {
+      onError(e instanceof ApiError ? e.message : "Could not add credits");
+    } finally {
+      setBuying(false);
+    }
+  }
 
   async function confirmGenerate() {
     setConfirming(false);
     onError("");
     setRendering(true);
     try {
-      await api.generateVideo(businessId, itemId);
+      await api.generateVideo(businessId, itemId, vision.trim() || undefined);
     } catch (e) {
       setRendering(false);
       onError(e instanceof ApiError ? e.message : "Could not start the video");
@@ -114,23 +153,70 @@ export function VideoButton({
                 <span className="text-muted">Checking your allowance…</span>
               ) : quota.unlimited ? (
                 <span>Unlimited video renders on your plan.</span>
-              ) : outOfQuota ? (
+              ) : blocked ? (
                 <span className="text-red-500">
-                  You&apos;ve used all {quota.limit} video renders this month.
+                  You&apos;ve used all {quota.limit} monthly renders and have no credits.
+                </span>
+              ) : usesCredit ? (
+                <span>
+                  No monthly renders left — this uses{" "}
+                  <span className="font-semibold">1</span> of your {credits} credits.
                 </span>
               ) : (
                 <span>
-                  <span className="font-semibold">{quota.remaining}</span> of{" "}
-                  {quota.limit} video renders left this month.
+                  <span className="font-semibold">{quota.remaining}</span> of {quota.limit}{" "}
+                  monthly renders left
+                  {credits > 0 && <> · {credits} credits</>}.
                 </span>
               )}
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
+            {/* The 8-second vision Claude will hand to Veo — preview and edit it. */}
+            <div className="mt-3">
+              {vision ? (
+                <>
+                  <label className="text-xs font-medium text-muted">
+                    🎬 The 8-second vision (edit to steer the render)
+                  </label>
+                  <textarea
+                    value={vision}
+                    onChange={(e) => setVision(e.target.value)}
+                    rows={5}
+                    maxLength={4000}
+                    className="mt-1 w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+                    placeholder="Describe the 8-second shot…"
+                  />
+                  <button
+                    type="button"
+                    onClick={loadVision}
+                    disabled={loadingVision}
+                    className="mt-1 text-xs text-brand hover:underline disabled:opacity-50"
+                  >
+                    {loadingVision ? "Rewriting…" : "↻ Let Claude rewrite it"}
+                  </button>
+                </>
+              ) : (
+                <Button
+                  variant="secondary"
+                  onClick={loadVision}
+                  loading={loadingVision}
+                  className="w-full"
+                >
+                  ✨ Preview &amp; edit the 8-second vision
+                </Button>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              {blocked && (
+                <Button variant="secondary" onClick={buyCredits} loading={buying}>
+                  Buy 10 renders
+                </Button>
+              )}
               <Button variant="ghost" onClick={() => setConfirming(false)}>
                 Cancel
               </Button>
-              <Button onClick={confirmGenerate} disabled={outOfQuota || quota === null}>
+              <Button onClick={confirmGenerate} disabled={blocked || quota === null}>
                 Generate video
               </Button>
             </div>

@@ -31,8 +31,10 @@ class GeminiImageProvider(ImageProvider):
         # photo is passed as an image part so the model uses it as the baseline.
         if reference:
             full_prompt = (
-                f"Using the attached product photo as the subject, {prompt} "
-                f"Keep the product's real appearance. Composition: {aspect} aspect ratio."
+                f"Use the attached product photo as the exact subject that MUST appear in "
+                f"the generated image — reproduce it faithfully (same colors, materials, "
+                f"and design). {prompt} "
+                f"Composition: {aspect} aspect ratio."
             )
             contents = [
                 types.Part.from_bytes(data=reference.data, mime_type=reference.mime),

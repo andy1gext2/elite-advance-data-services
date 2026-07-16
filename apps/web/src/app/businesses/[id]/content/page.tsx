@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import {
@@ -15,6 +15,7 @@ import {
 import { PlatformLogo, PostPreview } from "@/components/PostPreview";
 import { PostEditModal } from "@/components/PostEditModal";
 import { VideoButton } from "@/components/VideoButton";
+import { CampaignStartCalendar } from "@/components/CampaignStartCalendar";
 import {
   Alert,
   Badge,
@@ -37,6 +38,28 @@ const DURATIONS: { value: Timeframe; label: string; hint: string }[] = [
   { value: "week", label: "One week", hint: "All platforms, every other day for a week" },
   { value: "month", label: "One month", hint: "All platforms, every other day for a month" },
 ];
+
+function todayISO() {
+  const n = new Date();
+  const p = (x: number) => String(x).padStart(2, "0");
+  return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
+}
+
+function addDaysISO(iso: string, n: number) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  const p = (x: number) => String(x).padStart(2, "0");
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+}
+
+function fmtShort(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
 
 // A scheduled post's publish date: "Today · Jul 12" when it's today, else the date.
 function fmtPublish(iso: string) {
@@ -71,7 +94,26 @@ export default function ContentPage({
   const [brief, setBrief] = useState("");
   const [productId, setProductId] = useState("");
   const [duration, setDuration] = useState<Timeframe>("day");
+  const [startDate, setStartDate] = useState(todayISO());
+  const [calOpen, setCalOpen] = useState(false);
   const [notice, setNotice] = useState("");
+
+  const campaignSpan = duration === "day" ? 1 : duration === "week" ? 7 : 30;
+  const rangeLabel =
+    campaignSpan === 1
+      ? fmtShort(startDate)
+      : `${fmtShort(startDate)} – ${fmtShort(addDaysISO(startDate, campaignSpan - 1))}`;
+
+  // Group the (already popularity-sorted) posts by platform — one card per platform.
+  const groups = useMemo(() => {
+    const map = new Map<string, ContentItem[]>();
+    for (const it of items) {
+      const arr = map.get(it.channel) ?? [];
+      arr.push(it);
+      map.set(it.channel, arr);
+    }
+    return [...map.entries()].map(([channel, posts]) => ({ channel, posts }));
+  }, [items]);
 
   // Platform filter (server-side); the queue always shows drafts awaiting review.
   const [channelFilter, setChannelFilter] = useState("");
@@ -127,7 +169,8 @@ export default function ContentPage({
         id,
         brief.trim(),
         duration,
-        productId || undefined
+        productId || undefined,
+        startDate
       );
       const product = assets.find((a) => a.id === productId);
       const label = DURATIONS.find((d) => d.value === duration)?.label ?? duration;
@@ -234,8 +277,28 @@ export default function ContentPage({
               <p className="mt-1.5 text-xs text-muted">
                 {DURATIONS.find((d) => d.value === duration)?.hint}
               </p>
+              <button
+                type="button"
+                onClick={() => setCalOpen((o) => !o)}
+                className="mt-2 inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:border-brand"
+              >
+                <span>📅</span>
+                <span className="font-medium">{rangeLabel}</span>
+                <span className="text-xs text-muted">{calOpen ? "▲" : "▼"}</span>
+              </button>
             </div>
           </div>
+
+          {calOpen && (
+            <CampaignStartCalendar
+              value={startDate}
+              onChange={(d) => {
+                setStartDate(d);
+                setCalOpen(false);
+              }}
+              spanDays={campaignSpan}
+            />
+          )}
 
           <Field label="Campaign focus / brief">
             <Textarea
@@ -285,15 +348,16 @@ export default function ContentPage({
             : "No posts to review — draft a campaign above."}
         </p>
       ) : (
-        <div className="mt-4 grid gap-4 overflow-hidden">
-          {items.map((item) => (
-            <ContentCard
-              key={item.id}
-              item={item}
+        <div className="mt-4 grid gap-4">
+          {groups.map((g) => (
+            <PlatformGroup
+              key={g.channel}
+              channel={g.channel}
+              posts={g.posts}
               businessId={id}
               businessName={business?.name ?? "Your Brand"}
               assets={assets}
-              publishAt={publishAt[item.id]}
+              publishAt={publishAt}
               defaultProductId={productId}
               onDecide={decide}
               onEdit={setEditing}
@@ -402,7 +466,99 @@ function Tab({
   );
 }
 
-function ContentCard({
+// One card per platform: the posts for that platform, shown one at a time with
+// ‹ › arrows to page through them. Keeps the review queue concise.
+function PlatformGroup({
+  channel,
+  posts,
+  businessId,
+  businessName,
+  assets,
+  publishAt,
+  defaultProductId,
+  onDecide,
+  onEdit,
+  onSaved,
+  onError,
+}: {
+  channel: string;
+  posts: ContentItem[];
+  businessId: string;
+  businessName: string;
+  assets: Asset[];
+  publishAt: Record<string, string>;
+  defaultProductId: string;
+  onDecide: (item: ContentItem, approve: boolean) => void | Promise<void>;
+  onEdit: (item: ContentItem) => void;
+  onSaved: (updated: ContentItem) => void;
+  onError: (msg: string) => void;
+}) {
+  // Order posts by publish date ascending — page 1 = campaign start, last = end.
+  const ordered = useMemo(
+    () =>
+      [...posts].sort((a, b) =>
+        (publishAt[a.id] ?? "~").localeCompare(publishAt[b.id] ?? "~")
+      ),
+    [posts, publishAt]
+  );
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (index > ordered.length - 1) setIndex(Math.max(0, ordered.length - 1));
+  }, [ordered.length, index]);
+  const cur = Math.min(index, ordered.length - 1);
+  const post = ordered[cur];
+  if (!post) return null;
+
+  return (
+    <Card className="space-y-3 overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <PlatformLogo channel={channel} size={22} />
+        <span className="font-semibold">{CHANNEL_LABELS[channel] ?? channel}</span>
+        <span className="text-sm text-muted">({ordered.length})</span>
+        {ordered.length > 1 && (
+          <span className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              disabled={cur === 0}
+              aria-label="Previous post"
+              className="rounded-md border border-border px-2 py-1 text-sm text-muted hover:text-fg disabled:opacity-40"
+            >
+              ‹
+            </button>
+            <span className="text-xs tabular-nums text-muted">
+              {cur + 1} / {ordered.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIndex((i) => Math.min(ordered.length - 1, i + 1))}
+              disabled={cur >= ordered.length - 1}
+              aria-label="Next post"
+              className="rounded-md border border-border px-2 py-1 text-sm text-muted hover:text-fg disabled:opacity-40"
+            >
+              ›
+            </button>
+          </span>
+        )}
+      </div>
+      <PostContent
+        key={post.id}
+        item={post}
+        businessId={businessId}
+        businessName={businessName}
+        assets={assets}
+        publishAt={publishAt[post.id]}
+        defaultProductId={defaultProductId}
+        onDecide={onDecide}
+        onEdit={onEdit}
+        onSaved={onSaved}
+        onError={onError}
+      />
+    </Card>
+  );
+}
+
+function PostContent({
   item,
   businessId,
   businessName,
@@ -426,9 +582,13 @@ function ContentCard({
   onError: (msg: string) => void;
 }) {
   const [imaging, setImaging] = useState(false);
-  // Image-grounding product defaults to (and follows) the one picked in the studio.
-  const [productId, setProductId] = useState(defaultProductId);
-  useEffect(() => setProductId(defaultProductId), [defaultProductId]);
+  // Image-grounding product: the post's own campaign product wins, else the one
+  // picked in the studio — so a product post's image always features that product.
+  const [productId, setProductId] = useState(item.product_asset_id ?? defaultProductId);
+  useEffect(
+    () => setProductId(item.product_asset_id ?? defaultProductId),
+    [defaultProductId, item.product_asset_id]
+  );
   // Swipe feedback: reject slides left, approve slides right with a green glow.
   const [anim, setAnim] = useState<"" | "approve" | "reject">("");
 
@@ -455,7 +615,7 @@ function ContentCard({
   }
 
   return (
-    <Card
+    <div
       className={
         "space-y-3 transition-all duration-300 ease-out " +
         (anim === "reject"
@@ -466,9 +626,6 @@ function ContentCard({
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="brand">
-          {CHANNEL_LABELS[item.channel] ?? item.channel}
-        </Badge>
         <Badge>{item.content_type.replace(/_/g, " ")}</Badge>
         {publishAt && (
           <span className="inline-flex items-center gap-1 rounded-full border border-border bg-bg px-2 py-0.5 text-xs font-medium text-muted">
@@ -508,7 +665,7 @@ function ContentCard({
         <div>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted">
-              {CHANNEL_LABELS[item.channel] ?? item.channel} preview
+              Preview
             </p>
             <div className="flex items-center gap-2">
               {assets.length > 0 && (
@@ -548,6 +705,6 @@ function ContentCard({
           />
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

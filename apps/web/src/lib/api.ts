@@ -4,6 +4,7 @@
 import type {
   Asset,
   AutopilotConfig,
+  BillingStatus,
   Business,
   Campaign,
   CampaignCalendarItem,
@@ -19,6 +20,7 @@ import type {
   RunDueResult,
   Schedule,
   SocialAccount,
+  SubscriptionPlan,
   Timeframe,
   Tokens,
   VideoJob,
@@ -175,11 +177,19 @@ export const api = {
     );
   },
 
+  // Have Claude write the 8-second vision for this post (preview/edit before rendering).
+  generateVideoScript: (businessId: string, itemId: string) =>
+    request<{ prompt: string }>(
+      `/api/v1/businesses/${businessId}/content/${itemId}/video/script`,
+      { method: "POST" }
+    ),
+
   // Kick off an async video render; poll getVideoJob until it succeeds/fails.
-  generateVideo: (businessId: string, itemId: string) =>
+  // Pass an edited `prompt` to render that vision verbatim; omit to let Claude write it.
+  generateVideo: (businessId: string, itemId: string, prompt?: string) =>
     request<VideoJob>(
       `/api/v1/businesses/${businessId}/content/${itemId}/video`,
-      { method: "POST" }
+      { method: "POST", body: prompt ? { prompt } : undefined }
     ),
 
   getVideoJob: (businessId: string, itemId: string) =>
@@ -187,6 +197,12 @@ export const api = {
 
   videoQuota: (businessId: string) =>
     request<VideoQuota>(`/api/v1/businesses/${businessId}/content/video-quota`),
+
+  buyVideoCredits: (businessId: string, quantity: number) =>
+    request<VideoQuota>(`/api/v1/businesses/${businessId}/content/video-credits`, {
+      method: "POST",
+      body: { quantity },
+    }),
 
   // --- assets (product images) ---
   listAssets: (businessId: string) =>
@@ -386,11 +402,17 @@ export const api = {
     businessId: string,
     theme: string,
     timeframe: Timeframe,
-    productAssetId?: string
+    productAssetId?: string,
+    startDate?: string
   ) =>
     request<CampaignDetail>(`/api/v1/businesses/${businessId}/campaigns/propose`, {
       method: "POST",
-      body: { theme, timeframe, product_asset_id: productAssetId ?? null },
+      body: {
+        theme,
+        timeframe,
+        product_asset_id: productAssetId ?? null,
+        start_date: startDate ?? null,
+      },
     }),
 
   campaignCalendar: (businessId: string) =>
@@ -407,6 +429,30 @@ export const api = {
   rejectCampaign: (businessId: string, id: string) =>
     request<CampaignDetail>(
       `/api/v1/businesses/${businessId}/campaigns/${id}/reject`,
+      { method: "POST" }
+    ),
+
+  // --- billing ---
+  listPlans: () => request<SubscriptionPlan[]>("/api/v1/plans", { auth: false }),
+
+  billingStatus: (businessId: string) =>
+    request<BillingStatus>(`/api/v1/businesses/${businessId}/billing/status`),
+
+  billingCheckout: (businessId: string, tier: string) =>
+    request<{ url: string | null }>(
+      `/api/v1/businesses/${businessId}/billing/checkout`,
+      { method: "POST", body: { tier } }
+    ),
+
+  billingCreditsCheckout: (businessId: string) =>
+    request<{ url: string | null }>(
+      `/api/v1/businesses/${businessId}/billing/credits-checkout`,
+      { method: "POST" }
+    ),
+
+  billingPortal: (businessId: string) =>
+    request<{ url: string | null }>(
+      `/api/v1/businesses/${businessId}/billing/portal`,
       { method: "POST" }
     ),
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +14,8 @@ class ProposeCampaignIn(BaseModel):
     timeframe: Timeframe = "week"
     # Optional product to promote; its description steers the AI.
     product_asset_id: uuid.UUID | None = None
+    # Day the campaign starts (defaults to today).
+    start_date: date | None = None
 
 
 class CampaignCalendarItemOut(BaseModel):

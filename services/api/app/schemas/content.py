@@ -42,6 +42,7 @@ class ContentItemOut(BaseModel):
 
     id: uuid.UUID
     idea_id: uuid.UUID | None
+    product_asset_id: uuid.UUID | None = None
     channel: str
     content_type: str
     title: str | None
@@ -61,6 +62,20 @@ class VideoJobOut(BaseModel):
     status: str  # processing | succeeded | failed
     video_url: str | None = None
     error: str | None = None
+    prompt: str | None = None  # the 8-second vision Claude wrote for Veo
+
+
+class VideoCreditsIn(BaseModel):
+    quantity: int = Field(ge=1, le=1000)
+
+
+class VideoStartIn(BaseModel):
+    # Optional edited vision/script; omit to have Claude write it.
+    prompt: str | None = Field(default=None, max_length=4000)
+
+
+class VideoScriptOut(BaseModel):
+    prompt: str
 
 
 class ContentIdeaOut(BaseModel):

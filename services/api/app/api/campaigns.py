@@ -70,6 +70,7 @@ def propose_campaign(
             db, router=ai, business=ctx.business, theme=body.theme,
             timeframe=body.timeframe, source=CampaignSource.MANUAL,
             created_by=ctx.membership.user_id, product=product,
+            start=body.start_date,
         )
     except AiQuotaExceeded as exc:
         raise HTTPException(

@@ -25,6 +25,8 @@ def test_start_then_poll_produces_a_video(client):
     job = started.json()
     assert job["status"] == "processing"
     assert job["content_item_id"] == item_id
+    # Claude wrote an 8-second shot brief that Veo renders from.
+    assert job["prompt"] and job["prompt"].strip()
 
     # Poll — the mock renders instantly and stores the clip.
     polled = client.get(f"{API}/businesses/{bid}/content/{item_id}/video", headers=h)
@@ -55,7 +57,7 @@ def test_video_quota_guard(client):
         db.close()
 
     assert client.get(f"{API}/businesses/{bid}/content/video-quota", headers=h).json() == {
-        "used": 0, "limit": 1, "remaining": 1, "unlimited": False,
+        "used": 0, "limit": 1, "remaining": 1, "unlimited": False, "credits": 0,
     }
 
     # First render allowed; the second is blocked by the cost guard.
@@ -64,6 +66,55 @@ def test_video_quota_guard(client):
 
     q = client.get(f"{API}/businesses/{bid}/content/video-quota", headers=h).json()
     assert q["used"] == 1 and q["remaining"] == 0
+
+
+def test_video_credits_overflow_past_monthly_quota(client):
+    import uuid as u
+    from app.core.db import get_db
+    from app.models.business import Business
+
+    h, bid, item_id = _owner(client, email="videocredits@example.com")
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        biz = db.get(Business, u.UUID(bid))
+        biz.plan.video_monthly_quota = 1
+        biz.video_credits = 0
+        db.commit()
+    finally:
+        db.close()
+
+    V = f"{API}/businesses/{bid}/content/{item_id}/video"
+    # 1 monthly render, then blocked (no credits).
+    assert client.post(V, headers=h).status_code == 202
+    assert client.post(V, headers=h).status_code == 402
+
+    # Buy 2 credits (billing placeholder), then renders overflow onto credits.
+    bought = client.post(f"{API}/businesses/{bid}/content/video-credits", json={"quantity": 2}, headers=h)
+    assert bought.status_code == 200, bought.text
+    assert bought.json()["credits"] == 2
+
+    assert client.post(V, headers=h).status_code == 202  # spends 1 credit
+    assert client.get(f"{API}/businesses/{bid}/content/video-quota", headers=h).json()["credits"] == 1
+
+
+def test_preview_and_render_edited_vision(client):
+    h, bid, item_id = _owner(client, email="videoscript@example.com")
+
+    # Preview the AI vision (no render, no quota use).
+    s = client.post(f"{API}/businesses/{bid}/content/{item_id}/video/script", headers=h)
+    assert s.status_code == 200, s.text
+    assert s.json()["prompt"].strip()
+
+    # Render with an EDITED vision — it's used verbatim.
+    edited = "A neon city skyline at dusk, slow cinematic dolly toward the storefront."
+    started = client.post(
+        f"{API}/businesses/{bid}/content/{item_id}/video", json={"prompt": edited}, headers=h
+    )
+    assert started.status_code == 202, started.text
+    assert started.json()["prompt"] == edited
+
+    done = client.get(f"{API}/businesses/{bid}/content/{item_id}/video", headers=h).json()
+    assert done["status"] == "succeeded"
 
 
 def test_poll_without_a_job_404s(client):

@@ -41,6 +41,7 @@ export interface Business {
 export interface ContentItem {
   id: string;
   idea_id: string | null;
+  product_asset_id: string | null;
   channel: string;
   content_type: string;
   title: string | null;
@@ -65,6 +66,7 @@ export interface VideoQuota {
   limit: number | null;
   remaining: number | null;
   unlimited: boolean;
+  credits: number;
 }
 
 export interface ContentIdea {
@@ -211,6 +213,27 @@ export interface Dashboard {
 export interface Insights {
   summary: string;
   recommendations: string[];
+}
+
+export interface SubscriptionPlan {
+  tier: string;
+  name: string;
+  price_monthly: number;
+  max_users: number;
+  max_social_accounts: number;
+  max_locations: number;
+  ai_monthly_quota: number;
+  image_monthly_quota: number;
+  video_monthly_quota: number;
+  features: Record<string, boolean>;
+}
+
+export interface BillingStatus {
+  enabled: boolean;
+  plan_tier: string | null;
+  plan_name: string | null;
+  subscription_status: string | null;
+  video_credits: number;
 }
 
 export type Timeframe = "day" | "week" | "month" | "quarter" | "year";

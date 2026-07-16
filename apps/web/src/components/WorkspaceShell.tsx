@@ -18,6 +18,7 @@ const NAV = [
   { seg: "schedule", label: "Schedule", icon: "schedule" },
   { seg: "reputation", label: "Reputation", icon: "reputation" },
   { seg: "products", label: "Products", icon: "products" },
+  { seg: "billing", label: "Billing", icon: "billing" },
 ];
 
 // The command-center frame: a fixed left sidebar on desktop, a top bar + a

@@ -68,9 +68,11 @@ def _month_start() -> datetime:
 
 
 def usage_this_month(db: Session, business_id: uuid.UUID) -> int:
+    """Text/content generations this month (images meter separately, so exclude them)."""
     return db.scalar(
         select(func.count(AiUsage.id)).where(
             AiUsage.business_id == business_id,
+            AiUsage.module != "image",
             AiUsage.created_at >= _month_start(),
         )
     ) or 0

@@ -41,6 +41,14 @@ class Business(BaseModel):
     )
     plan: Mapped["Plan | None"] = relationship()
 
+    # Paid video-render credits (overflow past the plan's monthly video quota).
+    video_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Stripe billing linkage (set by the webhook after checkout).
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(64))
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(64))
+    subscription_status: Mapped[str | None] = mapped_column(String(32))
+
     memberships: Mapped[list["Membership"]] = relationship(
         back_populates="business", cascade="all, delete-orphan"
     )

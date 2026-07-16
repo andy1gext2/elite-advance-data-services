@@ -9,15 +9,33 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.ai.base import AIRequest, TaskType
+from app.ai.model_policy import select_model
+from app.ai.router import AIRouter
+from app.models.ai_usage import AiUsage
+from app.models.asset import Asset
 from app.models.business import Business
 from app.models.content import ContentItem
 from app.models.enums import UNLIMITED
 from app.models.video_job import VideoJob
+from app.services.rag_service import build_business_context
 from app.storage.base import Storage
 from app.video.base import VideoProvider
 
 # Vertical clips for feed platforms; landscape elsewhere.
 _VERTICAL_CHANNELS = {"instagram", "threads", "video"}
+
+# Claude turns a post's marketing message into a Veo shot brief. Constrained to an
+# 8-second, single continuous shot so Veo produces a coherent clip.
+_SCRIPT_SYSTEM = (
+    "You are a creative director writing the shot brief for an 8-SECOND AI-generated "
+    "marketing video (Google Veo). Turn the marketing message into ONE vivid, cinematic "
+    "prompt Veo can execute as a single continuous ~8-second shot. Describe: the subject, "
+    "ONE clear motion or action that begins and resolves within 8 seconds, camera movement, "
+    "lighting, mood, setting, and visual style. Be concrete and sensory. Do NOT use "
+    "timestamps, shot lists, spoken dialogue, or on-screen text/captions. Match the brand's "
+    "vibe. Output ONLY the prompt, 2–4 sentences."
+)
 
 
 class VideoQuotaExceeded(Exception):
@@ -50,13 +68,30 @@ def quota(db: Session, business: Business) -> dict:
         "limit": None if unlimited else limit,
         "remaining": None if unlimited else max(0, limit - used),
         "unlimited": unlimited,
+        "credits": business.video_credits,
     }
 
 
-def _check_quota(db: Session, business: Business) -> None:
+def _consume_allowance(db: Session, business: Business) -> None:
+    """Allow a render if within the monthly quota; otherwise spend a paid credit.
+    Raises VideoQuotaExceeded when both the monthly quota and credits are exhausted."""
     limit = business.plan.video_monthly_quota if business.plan else UNLIMITED
-    if limit != UNLIMITED and usage_this_month(db, business.id) >= limit:
-        raise VideoQuotaExceeded(limit)
+    if limit == UNLIMITED:
+        return
+    if usage_this_month(db, business.id) < limit:
+        return  # within the plan's monthly allowance
+    if business.video_credits > 0:
+        business.video_credits -= 1  # overflow: spend a credit
+        db.flush()
+        return
+    raise VideoQuotaExceeded(limit)
+
+
+def add_credits(db: Session, business: Business, quantity: int) -> int:
+    """Add paid render credits to a business (the billing webhook / purchase hook)."""
+    business.video_credits = max(0, business.video_credits + quantity)
+    db.flush()
+    return business.video_credits
 
 
 def build_prompt(business: Business, item: ContentItem) -> str:
@@ -77,13 +112,62 @@ def build_prompt(business: Business, item: ContentItem) -> str:
     return " ".join(parts)
 
 
+def generate_script(
+    db: Session, *, router: AIRouter, business: Business, item: ContentItem
+) -> str:
+    """Claude turns the post's marketing message into an 8-second Veo shot brief — the
+    creative vision Veo then executes. Grounds on brand + the promoted product."""
+    lines = [f"Brand: {business.name}."]
+    if business.industry:
+        lines.append(f"Industry: {business.industry}.")
+    if business.tone:
+        lines.append(f"Tone/mood: {business.tone}.")
+    if business.brand_voice:
+        lines.append(f"Brand character: {business.brand_voice}.")
+    if item.product_asset_id:
+        product = db.get(Asset, item.product_asset_id)
+        if product:
+            label = product.name or product.filename
+            note = f" {product.description}" if product.description else ""
+            lines.append(f"Feature this product prominently, true to life: {label}.{note}")
+
+    concept = "\n".join(p for p in (item.title, item.body) if p).strip()
+    prompt = "\n".join(lines) + f"\n\nMarketing message / post:\n{concept}\n\nWrite the 8-second Veo video prompt."
+
+    resp = router.handle(AIRequest(
+        task=TaskType.VIDEO_SCRIPT,
+        prompt=prompt,
+        business_id=str(business.id),
+        context={"business": build_business_context(business)},
+        system=_SCRIPT_SYSTEM,
+        model=select_model(task=TaskType.VIDEO_SCRIPT),
+        max_tokens=400,
+        temperature=0.8,
+    ))
+    db.add(AiUsage(
+        business_id=business.id, module="video_script",
+        provider=resp.provider, model=resp.model,
+        input_tokens=resp.input_tokens, output_tokens=resp.output_tokens,
+    ))
+    return resp.text.strip()
+
+
 def start_video(
-    db: Session, *, provider: VideoProvider, business: Business, item: ContentItem
+    db: Session, *, provider: VideoProvider, router: AIRouter,
+    business: Business, item: ContentItem, script: str | None = None,
 ) -> VideoJob:
     """Kick off a render and record the job (status 'processing'). Enforces the
-    tenant's monthly video quota (raises VideoQuotaExceeded)."""
-    _check_quota(db, business)
-    prompt = build_prompt(business, item)
+    tenant's monthly video quota + credits (raises VideoQuotaExceeded). Uses the
+    provided `script` (an owner-edited vision) if given; otherwise Claude writes the
+    8-second shot brief (falls back to a plain prompt on error). Veo executes it."""
+    _consume_allowance(db, business)
+    if script and script.strip():
+        prompt = script.strip()
+    else:
+        try:
+            prompt = generate_script(db, router=router, business=business, item=item)
+        except Exception:  # noqa: BLE001 - never fail the render because scripting hiccuped
+            prompt = build_prompt(business, item)
     aspect = "9:16" if item.channel in _VERTICAL_CHANNELS else "16:9"
     operation_ref = provider.start(prompt=prompt, aspect=aspect)
     job = VideoJob(

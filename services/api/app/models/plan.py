@@ -19,8 +19,11 @@ class Plan(BaseModel):
     max_social_accounts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     max_locations: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     ai_monthly_quota: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
-    # AI video renders are paid + expensive, so a separate (much smaller) monthly cap.
-    video_monthly_quota: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    # Images cost more than text, video far more — each gets its own monthly cap.
+    image_monthly_quota: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
+    video_monthly_quota: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Advertised price, USD/month (0 = custom/contact sales).
+    price_monthly: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Boolean feature flags: white_label, advanced_analytics, priority_support, ...
     features: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)

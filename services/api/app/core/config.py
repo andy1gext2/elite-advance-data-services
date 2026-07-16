@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     google_client_id: str | None = None
     google_client_secret: str | None = None
 
+    # Billing (Stripe). Disabled until stripe_secret_key is set — endpoints then
+    # 503 / fall back to dev grants. The webhook is the source of truth for plan +
+    # credit changes. Price IDs come from the Stripe dashboard (per tier + credits).
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_starter: str | None = None
+    stripe_price_professional: str | None = None
+    stripe_price_agency: str | None = None
+    stripe_credits_price_id: str | None = None
+    stripe_credits_per_pack: int = 10
+
     # File storage (product photos + generated images). "local" writes to disk and
     # serves under /media (dev); "s3" uploads to S3/S3-compatible (R2, etc.).
     storage_backend: str = "local"
