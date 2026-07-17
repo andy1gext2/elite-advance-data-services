@@ -134,6 +134,11 @@ def propose(
             break
         if product is not None:
             item.product_asset_id = product.id  # so its image auto-grounds on the product
+            # For a service with an AI flyer already made, reuse that EXACT image on
+            # every platform's post (copy-paste), rather than a per-post render.
+            if product.is_service and product.url:
+                item.image_url = product.url
+                item.image_prompt = "Reused service flyer"
             db.flush()
         account = _account_for(db, business.id, channel)
         db.add(CampaignItem(

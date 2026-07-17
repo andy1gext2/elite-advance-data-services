@@ -43,6 +43,7 @@ class CampaignItemOut(BaseModel):
     # Denormalized for display (filled by the route).
     body: str | None = None
     title: str | None = None
+    image_url: str | None = None
     account_name: str | None = None
 
 

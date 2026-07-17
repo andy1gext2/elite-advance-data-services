@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.images.base import ImageProvider, ReferenceImage
 from app.models.ai_usage import AiUsage
+from app.models.asset import Asset
 from app.models.business import Business
 from app.models.content import ContentItem
 from app.models.enums import UNLIMITED
@@ -65,9 +66,14 @@ def _check_quota(db: Session, business: Business) -> None:
         raise ImageQuotaExceeded(limit)
 
 
-def build_prompt(business: Business, item: ContentItem, grounded: bool) -> str:
+def build_prompt(
+    business: Business, item: ContentItem, grounded: bool, poster: bool = False
+) -> str:
     first_line = (item.body or "").strip().splitlines()[0][:220] if item.body else ""
-    parts = [f"Professional social media photo for {business.name}."]
+    if poster:
+        parts = [f"Design a clean, professional promotional POSTER advertising a service from {business.name}."]
+    else:
+        parts = [f"Professional social media photo for {business.name}."]
     if business.industry:
         parts.append(f"Industry: {business.industry}.")
     if business.tone:
@@ -76,7 +82,22 @@ def build_prompt(business: Business, item: ContentItem, grounded: bool) -> str:
         parts.append(f"Brand character: {business.brand_voice}.")
     if first_line:
         parts.append(f"Concept: {first_line}")
-    if grounded:
+
+    if poster:
+        # Services have no physical product to photograph — make a marketing poster
+        # that sells the service, optionally staging any reference photo in-scene.
+        parts.append(
+            "Advertising-poster composition: strong visual hierarchy, a bold focal "
+            "image that conveys the service being delivered (real people, real setting), "
+            "and a short punchy headline rendered as crisp, correctly-spelled poster "
+            "typography. Polished, modern graphic-design layout — like an agency-made ad."
+        )
+        if grounded:
+            parts.append(
+                "Incorporate the attached reference photo as the hero visual of the poster, "
+                "matching it exactly — same colors, subject, and details; never omit or restyle it."
+            )
+    elif grounded:
         parts.append(
             "The uploaded product MUST appear in the image as the clear focal subject, "
             "matching the reference photo exactly — same colors, materials, and design "
@@ -85,22 +106,82 @@ def build_prompt(business: Business, item: ContentItem, grounded: bool) -> str:
             "naturally wearing/using it in a lifestyle setting; otherwise feature the "
             "product prominently, in-use, in an appropriate real-world scene."
         )
+
+    if poster:
+        parts.append(
+            "High-quality, on-brand, professional lighting. Keep a consistent visual "
+            "style with the brand's previous approved posts."
+        )
+    else:
+        parts.append(
+            "Style: clean, modern, high-quality, on-brand, natural lighting, "
+            "no text or logos overlaid. Keep a consistent visual style with the brand's "
+            "previous approved posts."
+        )
+    return " ".join(parts)
+
+
+def build_asset_flyer_prompt(business: Business, asset: Asset) -> str:
+    """Poster/flyer prompt for a service asset — built from its name + description
+    (its own copy), independent of any single post."""
+    label = asset.name or asset.filename
+    parts = [f"Design a clean, professional promotional FLYER/POSTER advertising a service from {business.name}."]
+    if business.industry:
+        parts.append(f"Industry: {business.industry}.")
+    if business.tone:
+        parts.append(f"Mood: {business.tone}.")
+    if business.brand_voice:
+        parts.append(f"Brand character: {business.brand_voice}.")
+    parts.append(f"Service: {label}.")
+    if asset.description:
+        parts.append(asset.description)
     parts.append(
-        "Style: clean, modern, high-quality, on-brand, natural lighting, "
-        "no text or logos overlaid. Keep a consistent visual style with the brand's "
-        "previous approved posts."
+        "Advertising-poster composition: strong visual hierarchy, a bold focal image "
+        "that conveys the service being delivered (real people, real setting), and a "
+        "short punchy headline rendered as crisp, correctly-spelled poster typography. "
+        "Polished, modern agency-made ad layout. High-quality and on-brand."
     )
     return " ".join(parts)
 
 
+def generate_asset_flyer(
+    db, *, provider: ImageProvider, storage: Storage, business: Business,
+    asset: Asset, reference: ReferenceImage | None = None,
+) -> Asset:
+    """Generate an AI flyer/poster for a service and store it ON the asset (so the
+    same image can be reused across a campaign's posts). Enforces the image quota."""
+    _check_quota(db, business)
+    prompt = build_asset_flyer_prompt(business, asset)
+    result = provider.generate(prompt=prompt, aspect="1:1", reference=reference)
+
+    ext = _EXT.get(result.mime, "png")
+    key = f"assets/{asset.business_id}/{uuid.uuid4().hex}.{ext}"
+    url = storage.save(key=key, data=result.data, content_type=result.mime)
+
+    old_key = asset.storage_key
+    asset.url = url
+    asset.storage_key = key
+    asset.content_type = result.mime
+    db.add(AiUsage(
+        business_id=business.id, module=IMAGE_MODULE,
+        provider=result.provider, model=result.model, input_tokens=0, output_tokens=0,
+    ))
+    db.flush()
+    # Drop the previous file (an earlier flyer) once the new one is safely stored.
+    if old_key and old_key != key:
+        storage.delete(old_key)
+    return asset
+
+
 def generate_image(
     db, *, provider: ImageProvider, storage: Storage, business: Business,
-    item: ContentItem, reference: ReferenceImage | None = None,
+    item: ContentItem, reference: ReferenceImage | None = None, poster: bool = False,
 ) -> ContentItem:
     """Generate + store an on-brand visual. Enforces the tenant's monthly image
-    quota (raises ImageQuotaExceeded)."""
+    quota (raises ImageQuotaExceeded). `poster=True` renders a promotional poster
+    for a service instead of a product photo."""
     _check_quota(db, business)
-    prompt = build_prompt(business, item, grounded=reference is not None)
+    prompt = build_prompt(business, item, grounded=reference is not None, poster=poster)
     aspect = "1:1" if item.channel in _SQUARE_CHANNELS else "16:9"
     result = provider.generate(prompt=prompt, aspect=aspect, reference=reference)
 

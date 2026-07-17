@@ -14,12 +14,16 @@ export function VideoButton({
   hasVideo,
   onDone,
   onError,
+  script,
 }: {
   businessId: string;
   itemId: string;
   hasVideo: boolean;
   onDone: (videoUrl: string) => void;
   onError: (msg: string) => void;
+  // When provided, the parent owns the vision editor (e.g. the Edit modal) and
+  // this render uses that text — the button hides its own built-in editor.
+  script?: string;
 }) {
   const [rendering, setRendering] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -85,8 +89,10 @@ export function VideoButton({
     setConfirming(false);
     onError("");
     setRendering(true);
+    // Parent-supplied vision wins; otherwise use this button's own editor.
+    const finalVision = (script ?? vision).trim();
     try {
-      await api.generateVideo(businessId, itemId, vision.trim() || undefined);
+      await api.generateVideo(businessId, itemId, finalVision || undefined);
     } catch (e) {
       setRendering(false);
       onError(e instanceof ApiError ? e.message : "Could not start the video");
@@ -171,7 +177,15 @@ export function VideoButton({
               )}
             </div>
 
-            {/* The 8-second vision Claude will hand to Veo — preview and edit it. */}
+            {/* The 8-second vision Claude will hand to Veo — preview and edit it.
+                Hidden when the parent (Edit modal) already owns a vision editor. */}
+            {script !== undefined ? (
+              script.trim() ? (
+                <p className="mt-3 text-xs text-muted">
+                  Rendering your edited 8-second vision.
+                </p>
+              ) : null
+            ) : (
             <div className="mt-3">
               {vision ? (
                 <>
@@ -206,6 +220,7 @@ export function VideoButton({
                 </Button>
               )}
             </div>
+            )}
 
             <div className="mt-4 flex items-center justify-end gap-2">
               {blocked && (

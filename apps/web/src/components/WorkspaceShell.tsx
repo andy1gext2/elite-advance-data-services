@@ -17,7 +17,7 @@ const NAV = [
   { seg: "campaigns", label: "Campaigns", icon: "campaigns" },
   { seg: "schedule", label: "Schedule", icon: "schedule" },
   { seg: "reputation", label: "Reputation", icon: "reputation" },
-  { seg: "products", label: "Products", icon: "products" },
+  { seg: "products", label: "Products & Services", icon: "products" },
   { seg: "billing", label: "Billing", icon: "billing" },
 ];
 

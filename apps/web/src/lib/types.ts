@@ -150,12 +150,12 @@ export interface Review {
 
 export interface Asset {
   id: string;
-  kind: string;
+  kind: string; // "product" | "service"
   filename: string;
   name: string | null;
   description: string | null;
-  content_type: string;
-  url: string;
+  content_type: string | null;
+  url: string | null; // null for a service with no uploaded photo
   created_at: string;
 }
 

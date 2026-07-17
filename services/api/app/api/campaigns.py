@@ -41,6 +41,7 @@ def _detail(db: Session, campaign: Campaign) -> CampaignDetailOut:
             content_item_id=it.content_item_id, social_account_id=it.social_account_id,
             body=content.body if content else None,
             title=content.title if content else None,
+            image_url=content.image_url if content else None,
             account_name=account.display_name if account else None,
         ))
     return CampaignDetailOut(

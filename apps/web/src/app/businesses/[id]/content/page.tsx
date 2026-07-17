@@ -228,24 +228,25 @@ export default function ContentPage({
       <Card className="mt-6">
         <form onSubmit={onCreateCampaign} className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Promote a product">
+            <Field label="Promote a product or service">
               <select
                 value={productId}
                 onChange={(e) => setProductId(e.target.value)}
                 className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
               >
-                <option value="">No product — general campaign</option>
+                <option value="">General campaign — nothing specific</option>
                 {assets.map((a) => (
                   <option key={a.id} value={a.id}>
+                    {a.kind === "service" ? "🛠 " : "📦 "}
                     {a.name ?? a.filename}
                   </option>
                 ))}
               </select>
               {assets.length === 0 && (
                 <p className="mt-1 text-xs text-muted">
-                  No products yet —{" "}
+                  Nothing added yet —{" "}
                   <Link href={`/businesses/${id}/products`} className="text-brand hover:underline">
-                    add one
+                    add a product or service
                   </Link>{" "}
                   so the AI can build campaigns around it.
                 </p>

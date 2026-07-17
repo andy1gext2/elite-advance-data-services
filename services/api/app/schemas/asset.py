@@ -15,6 +15,6 @@ class AssetOut(BaseModel):
     filename: str
     name: str | None = None
     description: str | None = None
-    content_type: str
-    url: str
+    content_type: str | None = None
+    url: str | None = None
     created_at: datetime

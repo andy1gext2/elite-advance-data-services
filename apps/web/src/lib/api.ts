@@ -210,11 +210,12 @@ export const api = {
 
   uploadAsset: async (
     businessId: string,
-    file: File,
-    meta?: { name?: string; description?: string }
+    file: File | null,
+    meta?: { name?: string; description?: string; kind?: "product" | "service" }
   ): Promise<Asset> => {
     const form = new FormData();
-    form.append("file", file);
+    if (file) form.append("file", file);
+    if (meta?.kind) form.append("kind", meta.kind);
     if (meta?.name) form.append("name", meta.name);
     if (meta?.description) form.append("description", meta.description);
     const res = await fetch(`/api/v1/businesses/${businessId}/assets`, {
@@ -227,6 +228,13 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
     return (await res.json()) as Asset;
   },
+
+  // Generate an AI flyer/poster for a service, stored on the asset itself. That
+  // exact image is reused across every post of a campaign promoting the service.
+  generateFlyer: (businessId: string, assetId: string) =>
+    request<Asset>(`/api/v1/businesses/${businessId}/assets/${assetId}/flyer`, {
+      method: "POST",
+    }),
 
   deleteAsset: (businessId: string, assetId: string) =>
     request<void>(`/api/v1/businesses/${businessId}/assets/${assetId}`, {

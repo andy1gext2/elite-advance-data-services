@@ -46,6 +46,23 @@ export function PostEditModal({
   const [saving, setSaving] = useState(false);
   const [imaging, setImaging] = useState(false);
   const [error, setError] = useState("");
+  // The 8-second video vision Claude writes for Veo — visible + editable here so
+  // the owner can steer the render (or leave blank to let Claude write it).
+  const [vision, setVision] = useState("");
+  const [visionLoading, setVisionLoading] = useState(false);
+
+  async function writeVision() {
+    setError("");
+    setVisionLoading(true);
+    try {
+      const { prompt } = await api.generateVideoScript(businessId, post.id);
+      setVision(prompt);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not write the vision");
+    } finally {
+      setVisionLoading(false);
+    }
+  }
 
   const close = useCallback(() => {
     if (!saving && !imaging) onClose();
@@ -160,6 +177,7 @@ export function PostEditModal({
                   hasVideo={Boolean(videoUrl)}
                   onDone={setVideoUrl}
                   onError={setError}
+                  script={vision}
                 />
               </div>
             </div>
@@ -171,6 +189,35 @@ export function PostEditModal({
               imageUrl={imageUrl}
               videoUrl={videoUrl}
             />
+
+            {/* The 8-second video vision — see it and edit it before rendering. */}
+            <div className="mt-3 rounded-lg border border-border bg-bg p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                  🎬 Video vision
+                </p>
+                <button
+                  type="button"
+                  onClick={writeVision}
+                  disabled={visionLoading}
+                  className="text-xs text-brand hover:underline disabled:opacity-50"
+                >
+                  {visionLoading
+                    ? "Writing…"
+                    : vision
+                      ? "↻ Rewrite with AI"
+                      : "✨ Write the vision with AI"}
+                </button>
+              </div>
+              <textarea
+                value={vision}
+                onChange={(e) => setVision(e.target.value)}
+                rows={4}
+                maxLength={4000}
+                placeholder="Click ✨ to have Claude write the 8-second shot, or type your own vision. Used when you generate the video."
+                className="mt-2 w-full resize-y rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+              />
+            </div>
           </div>
         </div>
 

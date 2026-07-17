@@ -172,6 +172,7 @@ def generate_image(
     # so a product post's image always features that product.
     aid = asset_id if asset_id is not None else item.product_asset_id
     reference = None
+    poster = False
     if aid is not None:
         try:
             asset = asset_service.get_asset(db, business_id=ctx.business.id, asset_id=aid)
@@ -180,13 +181,17 @@ def generate_image(
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product image not found")
             asset = None  # the campaign's product was deleted — generate ungrounded
         if asset is not None:
-            data = storage.load(asset.storage_key)
-            if data:
-                reference = ReferenceImage(data=data, mime=asset.content_type)
+            # A service is marketed as a designed poster; a product as a grounded photo.
+            poster = asset.is_service
+            if asset.storage_key and asset.content_type:
+                data = storage.load(asset.storage_key)
+                if data:
+                    reference = ReferenceImage(data=data, mime=asset.content_type)
 
     try:
         item = image_service.generate_image(
-            db, provider=images, storage=storage, business=ctx.business, item=item, reference=reference
+            db, provider=images, storage=storage, business=ctx.business,
+            item=item, reference=reference, poster=poster,
         )
     except image_service.ImageQuotaExceeded as exc:
         raise HTTPException(

@@ -36,13 +36,44 @@ def test_upload_list_delete_asset(client):
     assert r.status_code == 201, r.text
     asset = r.json()
     assert asset["url"].startswith("/media/")
-    assert asset["kind"] == "product_image"
+    assert asset["kind"] == "product"
 
     listed = client.get(f"{API}/businesses/{bid}/assets", headers=h).json()
     assert len(listed) == 1
 
     assert client.delete(f"{API}/businesses/{bid}/assets/{asset['id']}", headers=h).status_code == 204
     assert client.get(f"{API}/businesses/{bid}/assets", headers=h).json() == []
+
+
+def test_service_asset_needs_no_photo(client):
+    h, bid = _owner(client, email="svc@example.com")
+
+    # A service is described in copy — no file required.
+    r = client.post(
+        f"{API}/businesses/{bid}/assets",
+        data={"kind": "service", "name": "Gutter Cleaning",
+              "description": "Full-home gutter clearing + inspection. $149 flat."},
+        headers=h,
+    )
+    assert r.status_code == 201, r.text
+    asset = r.json()
+    assert asset["kind"] == "service"
+    assert asset["url"] is None
+    assert asset["name"] == "Gutter Cleaning"
+
+    # A product still requires a photo.
+    bad = client.post(
+        f"{API}/businesses/{bid}/assets",
+        data={"kind": "product", "name": "No photo"},
+        headers=h,
+    )
+    assert bad.status_code == 400
+
+    # An empty service (no name/description) is rejected.
+    empty = client.post(
+        f"{API}/businesses/{bid}/assets", data={"kind": "service"}, headers=h
+    )
+    assert empty.status_code == 400
 
 
 def test_reject_non_image_upload(client):
@@ -74,6 +105,75 @@ def test_generate_image_grounded_on_product(client):
         params={"asset_id": str(uuid.uuid4())}, headers=h,
     )
     assert bad.status_code == 404
+
+
+def test_service_image_is_a_poster(client):
+    h, bid = _owner(client, email="svcimg@example.com")
+    # A photo-less service.
+    aid = client.post(
+        f"{API}/businesses/{bid}/assets",
+        data={"kind": "service", "name": "Gutter Cleaning",
+              "description": "Same-week gutter clearing. Flat $149."},
+        headers=h,
+    ).json()["id"]
+    item = client.post(
+        f"{API}/businesses/{bid}/content/generate",
+        json={"channel": "instagram", "brief": "promote gutter cleaning"}, headers=h,
+    ).json()
+
+    r = client.post(
+        f"{API}/businesses/{bid}/content/{item['id']}/image",
+        params={"asset_id": aid}, headers=h,
+    )
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["image_url"].startswith("/media/")
+    # The service is marketed as a designed poster, not a plain product photo.
+    assert "POSTER" in (out["image_prompt"] or "")
+
+
+def test_generate_flyer_for_service(client):
+    h, bid = _owner(client, email="flyer@example.com")
+    aid = client.post(
+        f"{API}/businesses/{bid}/assets",
+        data={"kind": "service", "name": "Lawn Care",
+              "description": "Weekly mow, edge & blow. $60/visit."},
+        headers=h,
+    ).json()["id"]
+
+    # No image yet.
+    assert client.get(f"{API}/businesses/{bid}/assets", headers=h).json()[0]["url"] is None
+
+    r = client.post(f"{API}/businesses/{bid}/assets/{aid}/flyer", headers=h)
+    assert r.status_code == 200, r.text
+    flyer = r.json()
+    assert flyer["kind"] == "service"
+    assert flyer["url"].startswith("/media/")
+
+    # Persisted on the asset.
+    assert client.get(f"{API}/businesses/{bid}/assets", headers=h).json()[0]["url"] == flyer["url"]
+
+
+def test_service_flyer_is_reused_across_campaign(client):
+    h, bid = _owner(client, email="reuse@example.com")
+    aid = client.post(
+        f"{API}/businesses/{bid}/assets",
+        data={"kind": "service", "name": "House Painting",
+              "description": "Interior + exterior. Free color consult."},
+        headers=h,
+    ).json()["id"]
+    flyer_url = client.post(f"{API}/businesses/{bid}/assets/{aid}/flyer", headers=h).json()["url"]
+
+    camp = client.post(
+        f"{API}/businesses/{bid}/campaigns/propose",
+        json={"theme": "Spring painting special", "timeframe": "week", "product_asset_id": aid},
+        headers=h,
+    )
+    assert camp.status_code == 201, camp.text
+    items = camp.json()["items"]
+    assert len(items) > 1
+    # Every platform's post carries the EXACT same generated flyer.
+    assert all(it["image_url"] == flyer_url for it in items)
 
 
 def test_assets_rbac_and_isolation(client):
