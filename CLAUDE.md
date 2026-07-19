@@ -48,27 +48,36 @@ An enterprise-grade, multi-tenant SaaS platform that acts as a business owner's 
 
 ## Commands
 
-Backend (works today — Python 3.12 is installed):
+Backend (macOS/zsh; venv already built at `services/api/.venv` on Python 3.12):
 ```
 cd services/api
-py -m venv .venv; .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+source .venv/bin/activate            # to recreate: uv venv --python 3.12 .venv && uv pip install -r requirements.txt
 uvicorn app.main:app --reload        # http://127.0.0.1:8000/docs
-python -m pytest -q                  # run the test suite
+python -m pytest -q                  # run the test suite (81 passing)
 alembic upgrade head                 # apply migrations (Postgres or a sqlite:/// URL)
 ```
 Dev DB: set `DATABASE_URL=sqlite:///./dev.db` in `.env` to run without Postgres. In
 non-production the app auto-creates tables + seeds plans on startup; prod uses Alembic.
 
-Frontend (works today — Node 24 is installed): `cd apps/web; npm install; npm run dev` → http://127.0.0.1:3000
+Frontend: `cd apps/web && npm run dev` → http://127.0.0.1:3000  (deps already installed via `npm ci`)
   (Next proxies `/api/*` to the backend, so run the backend too — no CORS setup needed.)
 Local infra (blocked — needs Docker): `docker compose -f infra/docker-compose.yml up`
 
 ## Environment realities (this machine)
 
-- **OS:** Windows 11, shell is **PowerShell** — no `&&`/`||` chaining; use `;` and `if ($?) {}`.
-- **Installed:** Python 3.12 + pip; **Node v24.18.0 + npm 11.16.0** (in Machine PATH — a terminal opened *before* the install has a stale PATH and needs a refresh/restart).
-- **Missing:** Docker, git, psql, redis-cli. Containerized infra + version control are blocked until these are installed. See [docs/limitations.md](docs/limitations.md).
+Built on Windows, then run on a **Mac (macOS/darwin, zsh)**. Toolchain set up 2026-07-18.
+This copy lives on the **internal APFS disk** (`~/Desktop/Elite advance data services`) —
+moved off an external FAT32 drive that couldn't host a Python venv. Keep it on internal disk.
+
+- **OS:** macOS (darwin), shell is **zsh** — supports `&&`/`||`/`;` chaining (Bash-style).
+- **Installed (2026-07-18):** Xcode Command Line Tools (`git 2.50.1`); **Node v24.18.0 + npm
+  11.16.0** at `$HOME/.local/node/bin` (on PATH via `~/.zshrc`); **uv 0.11.x** at
+  `$HOME/.local/bin` managing **standalone Python 3.12.13**; **gh 2.96.0** (GitHub CLI).
+  System `/usr/bin/python3` is 3.9.6 — too old (code uses `match`); always use `.venv` (3.12).
+- **GitHub:** remote `origin` set; reads work, but **push auth is not configured** until you
+  run `gh auth login` (browser device flow). `gh` is on PATH in a fresh terminal.
+- **Still missing:** Docker, psql, redis-cli — containerized infra is blocked.
+  See [docs/limitations.md](docs/limitations.md).
 
 ## Conventions
 
