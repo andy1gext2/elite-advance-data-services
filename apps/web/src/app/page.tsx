@@ -50,12 +50,12 @@ const STATS = [
 ];
 
 const PRICING = [
-  { name: "Starter", price: "$29", tagline: "For solo owners getting started.",
-    features: ["1 business", "150 AI generations / mo", "3 connected channels", "Content + calendar"] },
-  { name: "Professional", price: "$79", tagline: "For growing brands.", featured: true,
+  { name: "Starter", price: "$59.99", tagline: "For solo owners getting started.",
+    features: ["1 business", "150 AI generations / mo", "5 connected channels", "Content + calendar"] },
+  { name: "Professional", price: "$149.99", tagline: "For growing brands.", featured: true,
     features: ["3 businesses", "1,000 AI generations / mo", "All channels", "Scheduling + reputation"] },
-  { name: "Growth", price: "$199", tagline: "For teams and multi-location.",
-    features: ["10 businesses", "5,000 AI generations / mo", "Team roles + approvals", "Analytics + insights"] },
+  { name: "Growth", price: "$399.99", tagline: "For teams and multi-location.",
+    features: ["20 businesses", "5,000 AI generations / mo", "Team roles + approvals", "Analytics + insights"] },
   { name: "Enterprise", price: "Custom", tagline: "For agencies at scale.",
     features: ["Unlimited businesses", "Custom AI quota", "SSO + audit logs", "Dedicated support"] },
 ];
@@ -99,7 +99,7 @@ export default function LandingPage() {
                 href="/signup"
                 className="rounded-full bg-brand px-8 py-3.5 text-base font-medium text-brand-fg shadow-lg shadow-brand/20 transition-transform hover:scale-[1.03]"
               >
-                Start free
+                Get started
               </Link>
               <a
                 href="#features"
@@ -164,7 +164,7 @@ export default function LandingPage() {
                   href="/signup"
                   className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-transform hover:translate-x-0.5"
                 >
-                  Try it free →
+                  Get started →
                 </Link>
               </Reveal>
               <Reveal delay={120} className={flip ? "md:order-1" : ""}>
@@ -252,7 +252,7 @@ export default function LandingPage() {
                     variant={p.featured ? "primary" : "secondary"}
                     className="w-full rounded-full"
                   >
-                    {p.price === "Custom" ? "Contact sales" : "Start free"}
+                    {p.price === "Custom" ? "Contact sales" : "Get started"}
                   </Button>
                 </Link>
               </div>
@@ -276,7 +276,7 @@ export default function LandingPage() {
               href="/signup"
               className="rounded-full bg-brand px-8 py-3.5 text-base font-medium text-brand-fg shadow-lg shadow-brand/20 transition-transform hover:scale-[1.03]"
             >
-              Start free
+              Get started
             </Link>
           </div>
         </Reveal>

@@ -159,7 +159,7 @@ export default function BillingPage({
                   "Custom"
                 ) : (
                   <>
-                    ${p.price_monthly}
+                    ${(p.price_monthly / 100).toFixed(2)}
                     <span className="text-sm font-normal text-muted">/mo</span>
                   </>
                 )}

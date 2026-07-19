@@ -218,6 +218,7 @@ export interface Insights {
 export interface SubscriptionPlan {
   tier: string;
   name: string;
+  /** Advertised price in USD cents/month (e.g. 5999 = $59.99; 0 = custom). */
   price_monthly: number;
   max_users: number;
   max_social_accounts: number;

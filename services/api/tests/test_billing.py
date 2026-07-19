@@ -17,9 +17,9 @@ def test_plans_are_public_and_priced(client):
     plans = client.get(f"{API}/plans").json()
     tiers = {p["tier"]: p for p in plans}
     assert set(tiers) == {"starter", "professional", "growth", "enterprise"}
-    assert tiers["starter"]["price_monthly"] == 39
+    assert tiers["starter"]["price_monthly"] == 5999  # cents = $59.99
     assert tiers["professional"]["video_monthly_quota"] == 8
-    assert tiers["growth"]["name"] == "Agency"
+    assert tiers["growth"]["name"] == "Growth"
 
 
 def test_billing_status_reports_disabled_and_plan(client):

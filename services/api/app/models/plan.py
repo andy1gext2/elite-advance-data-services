@@ -22,7 +22,7 @@ class Plan(BaseModel):
     # Images cost more than text, video far more — each gets its own monthly cap.
     image_monthly_quota: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
     video_monthly_quota: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    # Advertised price, USD/month (0 = custom/contact sales).
+    # Advertised price in USD cents/month (e.g. 5999 = $59.99; 0 = custom/contact sales).
     price_monthly: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Boolean feature flags: white_label, advanced_analytics, priority_support, ...

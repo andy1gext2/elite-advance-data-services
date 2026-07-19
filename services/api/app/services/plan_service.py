@@ -9,7 +9,7 @@ from app.models.plan import Plan
 
 DEFAULT_PLANS: list[dict] = [
     {
-        "tier": PlanTier.STARTER.value, "name": "Starter", "price_monthly": 39,
+        "tier": PlanTier.STARTER.value, "name": "Starter", "price_monthly": 5999,
         "max_users": 2, "max_social_accounts": 5, "max_locations": 1,
         "ai_monthly_quota": 150, "image_monthly_quota": 40, "video_monthly_quota": 1,
         "features": {"advanced_analytics": False, "white_label": False,
@@ -17,7 +17,7 @@ DEFAULT_PLANS: list[dict] = [
                      "autopilot": False},
     },
     {
-        "tier": PlanTier.PROFESSIONAL.value, "name": "Professional", "price_monthly": 119,
+        "tier": PlanTier.PROFESSIONAL.value, "name": "Professional", "price_monthly": 14999,
         "max_users": 5, "max_social_accounts": 15, "max_locations": 3,
         "ai_monthly_quota": 1000, "image_monthly_quota": 250, "video_monthly_quota": 8,
         "features": {"advanced_analytics": True, "white_label": False,
@@ -25,7 +25,7 @@ DEFAULT_PLANS: list[dict] = [
                      "autopilot": True},
     },
     {
-        "tier": PlanTier.GROWTH.value, "name": "Agency", "price_monthly": 349,
+        "tier": PlanTier.GROWTH.value, "name": "Growth", "price_monthly": 39999,
         "max_users": 15, "max_social_accounts": 60, "max_locations": 20,
         "ai_monthly_quota": 5000, "image_monthly_quota": 1000, "video_monthly_quota": 30,
         "features": {"advanced_analytics": True, "white_label": True,
@@ -44,10 +44,16 @@ DEFAULT_PLANS: list[dict] = [
 
 
 def seed_default_plans(db: Session) -> None:
-    existing = {p.tier for p in db.scalars(select(Plan)).all()}
+    existing = {p.tier: p for p in db.scalars(select(Plan)).all()}
     for spec in DEFAULT_PLANS:
-        if spec["tier"] not in existing:
+        current = existing.get(spec["tier"])
+        if current is None:
             db.add(Plan(**spec))
+        else:
+            # Keep advertised price + display name in sync with the source-of-truth
+            # spec so pricing changes reach already-seeded (dev) DBs on restart.
+            current.price_monthly = spec["price_monthly"]
+            current.name = spec["name"]
     db.flush()
 
 
