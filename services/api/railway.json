@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "echo '== STEP: migrate =='; alembic upgrade head || echo '!! MIGRATE FAILED'; echo '== STEP: seed =='; python scripts/seed_plans.py || echo '!! SEED FAILED'; echo '== STEP: serve =='; exec uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 600,
     "restartPolicyType": "ON_FAILURE",
