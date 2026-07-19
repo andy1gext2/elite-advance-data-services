@@ -216,7 +216,13 @@ def write_video_script(
         item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
     except content_service.ContentNotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
-    script = video_service.generate_script(db, router=ai, business=ctx.business, item=item)
+    try:
+        script = video_service.generate_script(db, router=ai, business=ctx.business, item=item)
+    except content_service.AiQuotaExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Monthly AI quota ({exc.limit}) reached. Upgrade to generate more.",
+        )
     db.commit()
     return VideoScriptOut(prompt=script)
 

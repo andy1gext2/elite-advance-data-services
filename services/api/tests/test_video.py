@@ -40,6 +40,29 @@ def test_start_then_poll_produces_a_video(client):
     assert item["video_url"] == done["video_url"]
 
 
+def test_video_script_respects_ai_text_quota(client):
+    """The video "vision" is a billable Claude call exposed as its own endpoint,
+    so it must be gated by the monthly AI text quota — not an ungated cost leak."""
+    import uuid as u
+    from app.core.db import get_db
+    from app.models.business import Business
+
+    h, bid, item_id = _owner(client, email="videoscript@example.com")
+
+    # Onboarding already generated 1 content item (= 1 text-AI use). Cap the plan
+    # at 1, so the tenant is now exactly at their limit.
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        biz = db.get(Business, u.UUID(bid))
+        biz.plan.ai_monthly_quota = 1
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.post(f"{API}/businesses/{bid}/content/{item_id}/video/script", headers=h)
+    assert r.status_code == 402, r.text
+
+
 def test_video_quota_guard(client):
     import uuid as u
     from app.core.db import get_db

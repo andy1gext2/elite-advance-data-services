@@ -18,6 +18,10 @@ from app.models.business import Business
 from app.models.content import ContentItem
 from app.models.enums import UNLIMITED
 from app.models.video_job import VideoJob
+from app.services.content_service import (
+    AiQuotaExceeded,
+    usage_this_month as ai_usage_this_month,
+)
 from app.services.rag_service import build_business_context
 from app.storage.base import Storage
 from app.video.base import VideoProvider
@@ -116,7 +120,15 @@ def generate_script(
     db: Session, *, router: AIRouter, business: Business, item: ContentItem
 ) -> str:
     """Claude turns the post's marketing message into an 8-second Veo shot brief — the
-    creative vision Veo then executes. Grounds on brand + the promoted product."""
+    creative vision Veo then executes. Grounds on brand + the promoted product.
+
+    This is a real (billable) Claude call and is exposed as its own endpoint, so it
+    must respect the tenant's monthly AI text quota — otherwise it's an ungated cost
+    leak (the "Write vision" button could be spammed past the plan limit)."""
+    limit = business.plan.ai_monthly_quota if business.plan else UNLIMITED
+    if limit != UNLIMITED and ai_usage_this_month(db, business.id) >= limit:
+        raise AiQuotaExceeded(limit)
+
     lines = [f"Brand: {business.name}."]
     if business.industry:
         lines.append(f"Industry: {business.industry}.")
