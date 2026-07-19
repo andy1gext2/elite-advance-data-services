@@ -20,6 +20,21 @@ class BusinessCreate(BaseModel):
     timezone: str = "UTC"
 
 
+class BusinessUpdate(BaseModel):
+    """Partial edit of a tenant's brand/profile. Every field is optional; only
+    those present in the request body are changed."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    industry: str | None = Field(default=None, max_length=120)
+    website: str | None = Field(default=None, max_length=255)
+    description: str | None = None
+    target_audience: str | None = None
+    brand_voice: str | None = None
+    tone: str | None = Field(default=None, max_length=120)
+    goals: str | None = None
+    timezone: str | None = None
+
+
 class BusinessOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -29,11 +29,14 @@ if _is_sqlite:
     def _sqlite_pragmas(dbapi_conn, _record):  # noqa: ANN001
         """WAL lets readers run concurrently with a writer (so a long campaign
         generation no longer trips "database is locked" on incidental reads);
-        busy_timeout makes writers wait for the lock. No-op on :memory: (tests)."""
+        busy_timeout makes writers wait for the lock. foreign_keys=ON makes
+        SQLite honor ON DELETE CASCADE like Postgres does (so deleting a business
+        cleans up its content/schedules/reviews/etc.). No-op on :memory: (tests)."""
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA busy_timeout=30000")
         cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA foreign_keys=ON")
         cur.close()
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

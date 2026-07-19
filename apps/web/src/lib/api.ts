@@ -148,6 +148,12 @@ export const api = {
 
   getBusiness: (id: string) => request<Business>(`/api/v1/businesses/${id}`),
 
+  updateBusiness: (id: string, data: Partial<Business>) =>
+    request<Business>(`/api/v1/businesses/${id}`, { method: "PATCH", body: data }),
+
+  deleteBusiness: (id: string) =>
+    request<void>(`/api/v1/businesses/${id}`, { method: "DELETE" }),
+
   // --- content ---
   listContent: (businessId: string, filters?: { status?: string; channel?: string }) => {
     const params = new URLSearchParams();

@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.business import (
     BusinessCreate,
     BusinessOut,
+    BusinessUpdate,
     MemberInvite,
     MemberOut,
 )
@@ -44,6 +45,29 @@ def list_my_businesses(
 @router.get("/{business_id}", response_model=BusinessOut)
 def get_business(ctx: TenantContext = Depends(get_membership_ctx)) -> BusinessOut:
     return ctx.business
+
+
+@router.patch("/{business_id}", response_model=BusinessOut)
+def update_business(
+    body: BusinessUpdate,
+    ctx: TenantContext = Depends(require_role(Role.ADMIN)),
+    db: Session = Depends(get_db),
+) -> BusinessOut:
+    business = business_service.update_business(
+        db, business=ctx.business, data=body.model_dump(exclude_unset=True)
+    )
+    db.commit()
+    db.refresh(business)
+    return business
+
+
+@router.delete("/{business_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_business(
+    ctx: TenantContext = Depends(require_role(Role.OWNER)),
+    db: Session = Depends(get_db),
+) -> None:
+    business_service.delete_business(db, business=ctx.business)
+    db.commit()
 
 
 @router.get("/{business_id}/members", response_model=list[MemberOut])

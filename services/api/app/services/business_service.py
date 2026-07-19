@@ -46,6 +46,25 @@ def create_business(
     return business
 
 
+def update_business(db: Session, *, business: Business, data: dict) -> Business:
+    """Patch a tenant's brand/profile details. Only provided fields are changed."""
+    for key, value in data.items():
+        setattr(business, key, value)
+    db.flush()
+    return business
+
+
+def delete_business(db: Session, *, business: Business) -> None:
+    """Delete a tenant and everything scoped to it.
+
+    Child rows (content, schedules, reviews, campaigns, assets, social accounts,
+    memberships, …) are removed by the ON DELETE CASCADE on their business_id FK
+    — enforced on Postgres, and on SQLite via PRAGMA foreign_keys=ON (see core.db).
+    """
+    db.delete(business)
+    db.flush()
+
+
 def list_businesses_for_user(db: Session, *, user_id: uuid.UUID) -> list[Business]:
     stmt = (
         select(Business)

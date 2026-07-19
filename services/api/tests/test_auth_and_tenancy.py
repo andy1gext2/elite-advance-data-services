@@ -60,6 +60,45 @@ def test_create_and_list_business(client):
     assert [b["id"] for b in r.json()] == [business["id"]]
 
 
+def test_update_business_details(client):
+    owner = _auth(_signup(client, "edit@example.com")["access_token"])
+    biz = client.post(f"{API}/businesses", json={"name": "Old Name", "industry": "Retail"},
+                      headers=owner).json()
+    bid = biz["id"]
+
+    r = client.patch(f"{API}/businesses/{bid}",
+                     json={"name": "New Name", "industry": "Coffee", "tone": "warm"},
+                     headers=owner)
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "New Name"
+    assert r.json()["industry"] == "Coffee"
+    assert r.json()["tone"] == "warm"
+
+    # Non-member cannot edit (404 — existence not leaked).
+    other = _auth(_signup(client, "edit-other@example.com")["access_token"])
+    assert client.patch(f"{API}/businesses/{bid}", json={"name": "Hijack"},
+                        headers=other).status_code == 404
+
+
+def test_delete_business_requires_owner_and_cascades(client):
+    owner = _auth(_signup(client, "del-owner@example.com")["access_token"])
+    biz = client.post(f"{API}/businesses", json={"name": "Doomed Co"}, headers=owner).json()
+    bid = biz["id"]
+
+    # A non-owner member (editor) cannot delete.
+    _signup(client, "del-editor@example.com")
+    client.post(f"{API}/businesses/{bid}/members",
+                json={"email": "del-editor@example.com", "role": "editor"}, headers=owner)
+    editor = _auth(client.post(f"{API}/auth/login",
+                   json={"email": "del-editor@example.com", "password": "password123"}).json()["access_token"])
+    assert client.delete(f"{API}/businesses/{bid}", headers=editor).status_code == 403
+
+    # Owner deletes; the workspace is gone afterward.
+    assert client.delete(f"{API}/businesses/{bid}", headers=owner).status_code == 204
+    assert client.get(f"{API}/businesses/{bid}", headers=owner).status_code == 404
+    assert client.get(f"{API}/businesses", headers=owner).json() == []
+
+
 def test_tenant_isolation(client):
     owner = _auth(_signup(client, "o1@example.com")["access_token"])
     other = _auth(_signup(client, "o2@example.com")["access_token"])
