@@ -121,6 +121,8 @@ def post_response(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
     except reputation_service.NothingToPost as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except reputation_service.ReviewReplyFailed as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
     db.commit()
     db.refresh(review)
     return review

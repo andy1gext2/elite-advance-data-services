@@ -39,6 +39,11 @@ class NothingToPost(Exception):
     ...
 
 
+class ReviewReplyFailed(Exception):
+    """A live connector rejected the review reply (e.g. API error / access not
+    yet granted). Surfaced to the caller so the reply isn't marked as posted."""
+
+
 def _check_quota(db: Session, business: Business) -> None:
     limit = business.plan.ai_monthly_quota if business.plan else UNLIMITED
     if limit != UNLIMITED and usage_this_month(db, business.id) >= limit:
@@ -194,13 +199,47 @@ def set_response(
     return review
 
 
+def _post_reply_via_connector(db: Session, business_id: uuid.UUID, review: Review) -> None:
+    """Best-effort: post the stored reply through the review's platform connector.
+
+    Degrades gracefully when there's no live account for the platform, or the
+    connector doesn't implement review replies yet (mock/dev, or Meta whose reviews
+    API is deprecated) — those cases fall through so the reply is still marked as
+    handled locally. Only a *live* connector that actively rejects the reply raises
+    ReviewReplyFailed, so real API errors aren't silently swallowed."""
+    account = db.scalar(
+        select(SocialAccount).where(
+            SocialAccount.business_id == business_id,
+            SocialAccount.platform == review.platform,
+        )
+    )
+    if not account or not account.access_token_enc:
+        return  # nothing connected for this platform — local mark only
+    connector = get_connector(review.platform)
+    token = decrypt(account.access_token_enc)
+    try:
+        result = connector.reply_to_review(
+            account_token=token, review_ref=review.external_id,
+            reply_text=review.response_text or "",
+        )
+    except NotSupported:
+        return  # connector can't reply yet — degrade to a local mark
+    if not result.ok:
+        if getattr(connector, "live", False):
+            raise ReviewReplyFailed(result.error or "reply rejected by platform")
+        return  # non-live (mock) rejection — don't block the flow
+
+
 def mark_responded(
     db: Session, *, business_id: uuid.UUID, review_id: uuid.UUID
 ) -> Review:
-    """Post the stored reply (mock) and clear the escalation flag."""
+    """Post the stored reply through the connector (when a live account is
+    connected) and clear the escalation flag. Falls back to a local mark when the
+    platform can't be posted to yet — see _post_reply_via_connector."""
     review = get_review(db, business_id=business_id, review_id=review_id)
     if not (review.response_text and review.response_text.strip()):
         raise NothingToPost("no response drafted for this review")
+    _post_reply_via_connector(db, business_id, review)
     review.status = ReviewStatus.RESPONDED.value
     review.needs_attention = False
     db.flush()

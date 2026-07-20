@@ -19,14 +19,25 @@ from app.connectors.base import PlatformConnector, PublishResult
 from app.core.config import get_settings
 
 # Permissions requested per platform. Advanced perms require Meta App Review.
+#
+# Reputation note: Facebook's star-rating/Recommendations *reviews* API is
+# deprecated, so sentiment + AI responses on Meta run off Page COMMENTS and
+# @-mentions instead of star reviews. We therefore request, up front (so no
+# re-consent is needed after App Review):
+#   • pages_read_engagement    — read reactions/comments on the Page's own posts
+#   • pages_read_user_content  — read user-generated comments/posts/mentions (sentiment)
+#   • pages_manage_engagement  — reply to comments AS the Page (AI responds to customers)
+#   • instagram_manage_comments — read + reply to IG comments and mentions
 _SCOPES = {
     "facebook": [
         "public_profile", "pages_show_list", "pages_read_engagement",
+        "pages_read_user_content", "pages_manage_engagement",
         "pages_manage_posts", "business_management",
     ],
     "instagram": [
         "public_profile", "pages_show_list", "instagram_basic",
-        "instagram_content_publish", "business_management",
+        "instagram_manage_comments", "instagram_content_publish",
+        "business_management",
     ],
 }
 

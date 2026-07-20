@@ -47,6 +47,15 @@ class PlatformConnector(ABC):
     def fetch_reviews(self, *, account_token: str) -> list[dict]:
         raise NotSupported(f"{self.platform}: fetch_reviews not implemented")
 
+    def reply_to_review(
+        self, *, account_token: str, review_ref: str, reply_text: str
+    ) -> PublishResult:
+        """Post an owner/AI reply to a review (reputation management). `review_ref`
+        is the platform's review id/resource name (Review.external_id). Real
+        connectors implement this once the platform grants review-write access; the
+        default is a clear NotSupported so the reputation flow degrades gracefully."""
+        raise NotSupported(f"{self.platform}: reply_to_review not implemented")
+
     def fetch_metrics(self, *, account_token: str) -> dict:
         raise NotSupported(f"{self.platform}: fetch_metrics not implemented")
 

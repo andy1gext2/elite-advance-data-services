@@ -2,8 +2,14 @@
 
 Activated by GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (else the registry falls back to
 the mock). NOTE: the Business Profile API is access-restricted — you must request
-access (allowlist) from Google before the identity/publish calls will succeed; the
-OAuth handshake itself works with any OAuth client.
+access (allowlist) from Google before the identity/publish/review calls will
+succeed; the OAuth handshake itself works with any OAuth client.
+
+Reputation: the single `business.manage` scope we request already grants BOTH
+reading reviews (reviews.list — sentiment) AND posting owner replies
+(reviews.updateReply — the AI response). So no scope change is needed for
+reputation; `reply_to_review` below is wired to the real v4 endpoint and lights up
+the moment Google grants Business Profile API access.
 
 Publishing (local posts) isn't implemented yet and returns a clear failure.
 """
@@ -113,3 +119,34 @@ class GoogleBusinessConnector(PlatformConnector):
             ok=False,
             error="Google Business posting is not implemented yet (needs Business Profile API access).",
         )
+
+    def reply_to_review(
+        self, *, account_token: str, review_ref: str, reply_text: str
+    ) -> PublishResult:
+        """Post the owner/AI reply to a GBP review via reviews.updateReply.
+
+        `review_ref` is the review's full resource name
+        (accounts/{a}/locations/{l}/reviews/{r}) — stored as Review.external_id at
+        ingest. Covered by the `business.manage` scope; succeeds once the Business
+        Profile API allowlist is granted."""
+        if not reply_text.strip():
+            return PublishResult(ok=False, error="empty reply")
+        if "/reviews/" not in review_ref:
+            return PublishResult(
+                ok=False,
+                error="Review has no Google resource name yet (connect + sync a live GBP account first).",
+            )
+        import httpx
+
+        try:
+            with httpx.Client(timeout=30) as client:
+                r = client.put(
+                    f"https://mybusiness.googleapis.com/v4/{review_ref}/reply",
+                    headers={"Authorization": f"Bearer {account_token}"},
+                    json={"comment": reply_text},
+                )
+            if r.is_success:
+                return PublishResult(ok=True, external_id=review_ref)
+            return PublishResult(ok=False, error=f"Google Business API: {r.text[:200]}")
+        except Exception as exc:  # noqa: BLE001 - never crash the reputation flow
+            return PublishResult(ok=False, error=f"GBP review reply failed: {exc}")
