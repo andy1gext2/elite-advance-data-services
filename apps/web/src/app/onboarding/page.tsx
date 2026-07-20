@@ -34,12 +34,20 @@ export default function OnboardingPage() {
     tone: "",
     goals: "",
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [connecting, setConnecting] = useState("");
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function onLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setLogoFile(file);
+    setLogoPreview(file ? URL.createObjectURL(file) : null);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -51,6 +59,14 @@ export default function OnboardingPage() {
         Object.entries(form).filter(([, v]) => v.trim() !== "")
       );
       const business = await api.createBusiness(payload);
+      // Logo is optional and non-blocking — a failed upload shouldn't stop onboarding.
+      if (logoFile) {
+        try {
+          await api.uploadBusinessLogo(business.id, logoFile);
+        } catch {
+          /* ignore — they can add it later from Edit details */
+        }
+      }
       await refreshMe();
       setBusinessId(business.id);
       setStep("connect");
@@ -155,6 +171,39 @@ export default function OnboardingPage() {
                 placeholder="Acme Coffee Co."
                 required
               />
+            </Field>
+            <Field label="Logo" hint="Optional. PNG, JPG, WEBP, or GIF — up to 5 MB.">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-border bg-bg">
+                  {logoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-xs text-muted">No logo</span>
+                  )}
+                </div>
+                <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-bg">
+                  {logoFile ? "Change logo" : "Upload logo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={onLogoChange}
+                    className="hidden"
+                  />
+                </label>
+                {logoFile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoFile(null);
+                      setLogoPreview(null);
+                    }}
+                    className="text-sm text-muted hover:text-fg"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Industry">

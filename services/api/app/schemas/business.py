@@ -49,6 +49,7 @@ class BusinessOut(BaseModel):
     goals: str | None
     timezone: str
     status: str
+    logo_url: str | None
     plan_id: uuid.UUID | None
 
 

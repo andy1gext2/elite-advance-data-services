@@ -171,6 +171,23 @@ export const api = {
   deleteBusiness: (id: string) =>
     request<void>(`/api/v1/businesses/${id}`, { method: "DELETE" }),
 
+  uploadBusinessLogo: async (id: string, file: File): Promise<Business> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/v1/businesses/${id}/logo`, {
+      method: "POST",
+      headers: tokenStore.access
+        ? { Authorization: `Bearer ${tokenStore.access}` }
+        : {},
+      body: form,
+    });
+    if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+    return (await res.json()) as Business;
+  },
+
+  deleteBusinessLogo: (id: string) =>
+    request<Business>(`/api/v1/businesses/${id}/logo`, { method: "DELETE" }),
+
   // --- content ---
   listContent: (businessId: string, filters?: { status?: string; channel?: string }) => {
     const params = new URLSearchParams();

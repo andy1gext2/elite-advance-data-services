@@ -29,6 +29,10 @@ class Business(BaseModel):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC", nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
 
+    # Brand logo (part of the brand kit). Stored via the object-storage layer.
+    logo_url: Mapped[str | None] = mapped_column(String(500))
+    logo_storage_key: Mapped[str | None] = mapped_column(String(500))
+
     # Autopilot: periodically draft a campaign for approval (approve-first).
     autopilot_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     autopilot_theme: Mapped[str | None] = mapped_column(Text)

@@ -27,6 +27,9 @@ def build_business_context(business: Business) -> dict:
         "brand_voice": business.brand_voice,
         "tone": business.tone,
         "goals": business.goals,
+        # Signals the brand has an established visual identity; keep copy consistent
+        # with a polished, on-brand presence.
+        "has_logo": bool(business.logo_url),
     }
 
 

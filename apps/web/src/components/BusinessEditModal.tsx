@@ -28,9 +28,40 @@ export function BusinessEditModal({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(business.logo_url);
+  const [logoBusy, setLogoBusy] = useState(false);
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function onLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setLogoBusy(true);
+    try {
+      const updated = await api.uploadBusinessLogo(business.id, file);
+      setLogoUrl(updated.logo_url);
+      onSaved(updated); // reflect on the dashboard card immediately
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Logo upload failed");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function removeLogo() {
+    setLogoBusy(true);
+    try {
+      const updated = await api.deleteBusinessLogo(business.id);
+      setLogoUrl(null);
+      onSaved(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not remove logo");
+    } finally {
+      setLogoBusy(false);
+    }
   }
 
   const close = useCallback(() => {
@@ -94,6 +125,37 @@ export function BusinessEditModal({
         </div>
 
         <form onSubmit={save} className="space-y-4 p-5">
+          <Field label="Logo" hint="PNG, JPG, WEBP, or GIF — up to 5 MB.">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-border bg-bg">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
+                ) : (
+                  <span className="text-xs text-muted">No logo</span>
+                )}
+              </div>
+              <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-bg">
+                {logoBusy ? "Uploading…" : logoUrl ? "Change" : "Upload"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={onLogoChange}
+                  disabled={logoBusy}
+                  className="hidden"
+                />
+              </label>
+              {logoUrl && !logoBusy && (
+                <button
+                  type="button"
+                  onClick={removeLogo}
+                  className="text-sm text-muted hover:text-fg"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </Field>
           <Field label="Business name">
             <Input
               value={form.name}

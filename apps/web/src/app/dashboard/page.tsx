@@ -80,7 +80,17 @@ export default function DashboardPage() {
                 />
                 <Link href={`/businesses/${b.id}/content`} className="block">
                   <div className="flex items-start justify-between gap-2 pr-8">
-                    <h2 className="font-semibold">{b.name}</h2>
+                    <div className="flex items-center gap-3">
+                      {b.logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={b.logo_url}
+                          alt={`${b.name} logo`}
+                          className="h-9 w-9 shrink-0 rounded-md border border-border object-contain"
+                        />
+                      )}
+                      <h2 className="font-semibold">{b.name}</h2>
+                    </div>
                     <Badge tone="brand">{b.status}</Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted">

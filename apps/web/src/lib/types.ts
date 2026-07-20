@@ -65,6 +65,7 @@ export interface Business {
   goals: string | null;
   timezone: string;
   status: string;
+  logo_url: string | null;
   plan_id: string | null;
 }
 

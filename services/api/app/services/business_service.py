@@ -54,6 +54,36 @@ def update_business(db: Session, *, business: Business, data: dict) -> Business:
     return business
 
 
+_LOGO_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
+
+
+class UnsupportedLogo(Exception):
+    ...
+
+
+def set_logo(db: Session, *, storage, business: Business, data: bytes, content_type: str) -> Business:
+    """Store a brand logo and point the business at it (replacing any prior logo)."""
+    if content_type not in _LOGO_EXT:
+        raise UnsupportedLogo(content_type or "unknown")
+    old_key = business.logo_storage_key
+    key = f"logos/{business.id}/{uuid.uuid4().hex}.{_LOGO_EXT[content_type]}"
+    business.logo_url = storage.save(key=key, data=data, content_type=content_type)
+    business.logo_storage_key = key
+    db.flush()
+    if old_key and old_key != key:
+        storage.delete(old_key)
+    return business
+
+
+def remove_logo(db: Session, *, storage, business: Business) -> Business:
+    if business.logo_storage_key:
+        storage.delete(business.logo_storage_key)
+    business.logo_url = None
+    business.logo_storage_key = None
+    db.flush()
+    return business
+
+
 def delete_business(db: Session, *, business: Business) -> None:
     """Delete a tenant and everything scoped to it.
 
