@@ -52,6 +52,10 @@ class CampaignNotFound(Exception):
     ...
 
 
+class CampaignItemNotFound(Exception):
+    ...
+
+
 class InvalidCampaignState(Exception):
     ...
 
@@ -199,6 +203,42 @@ def calendar_items(db: Session, *, business_id: uuid.UUID) -> list[dict]:
         }
         for item, campaign_name, title, body in rows
     ]
+
+
+def reschedule_item(
+    db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID, new_date: date
+) -> dict:
+    """Move a calendar post to a different day (drag-and-drop). Keeps its time of
+    day, and moves the linked publish Schedule too so the post actually goes out on
+    the new date. Published posts can't be moved."""
+    from app.models.schedule import Schedule
+
+    item = db.scalar(
+        select(CampaignItem).where(
+            CampaignItem.id == item_id, CampaignItem.business_id == business_id
+        )
+    )
+    if not item:
+        raise CampaignItemNotFound(str(item_id))
+    if item.status == "published":
+        raise CampaignItemNotFound(str(item_id))  # not movable once published
+
+    item.scheduled_at = datetime.combine(new_date, item.scheduled_at.time())
+
+    # If this post has a real publish schedule (approved + connected account),
+    # move it to match so it publishes on the new date.
+    if item.content_item_id:
+        sched = db.scalar(
+            select(Schedule).where(
+                Schedule.business_id == business_id,
+                Schedule.content_item_id == item.content_item_id,
+            )
+        )
+        if sched is not None:
+            sched.scheduled_at = datetime.combine(new_date, sched.scheduled_at.time())
+
+    db.flush()
+    return {"id": str(item.id), "scheduled_at": item.scheduled_at.isoformat()}
 
 
 def approve(db: Session, *, business_id: uuid.UUID, campaign_id: uuid.UUID) -> Campaign:

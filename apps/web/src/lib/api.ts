@@ -517,6 +517,12 @@ export const api = {
       `/api/v1/businesses/${businessId}/campaigns/calendar`
     ),
 
+  rescheduleCalendarItem: (businessId: string, itemId: string, date: string) =>
+    request<{ id: string; scheduled_at: string }>(
+      `/api/v1/businesses/${businessId}/campaigns/items/${itemId}/schedule`,
+      { method: "PATCH", body: { scheduled_date: date } }
+    ),
+
   approveCampaign: (businessId: string, id: string) =>
     request<CampaignDetail>(
       `/api/v1/businesses/${businessId}/campaigns/${id}/approve`,

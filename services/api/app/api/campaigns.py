@@ -4,8 +4,10 @@ a human approves."""
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.ai.registry import get_ai_router
@@ -90,6 +92,28 @@ def campaign_calendar(
 ) -> list[CampaignCalendarItemOut]:
     """Bird's-eye schedule: every campaign's posts as dated calendar entries."""
     return campaign_service.calendar_items(db, business_id=ctx.business.id)
+
+
+class RescheduleIn(BaseModel):
+    scheduled_date: date
+
+
+@router.patch("/campaigns/items/{item_id}/schedule")
+def reschedule_calendar_item(
+    item_id: uuid.UUID,
+    body: RescheduleIn,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Drag-and-drop reschedule: move a calendar post to a new day."""
+    try:
+        result = campaign_service.reschedule_item(
+            db, business_id=ctx.business.id, item_id=item_id, new_date=body.scheduled_date
+        )
+    except campaign_service.CampaignItemNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found or not movable")
+    db.commit()
+    return result
 
 
 @router.get("/campaigns", response_model=list[CampaignOut])

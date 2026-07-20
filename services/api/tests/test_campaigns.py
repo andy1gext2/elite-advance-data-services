@@ -146,6 +146,30 @@ def test_campaign_calendar_lists_dated_posts(client):
     assert e["content_item_id"]
 
 
+def test_reschedule_calendar_item_moves_the_post(client):
+    h, bid = _owner(client, email="camp-move@example.com")
+    client.post(
+        f"{API}/businesses/{bid}/campaigns/propose",
+        json={"theme": "Move me", "timeframe": "week"}, headers=h,
+    )
+    entries = client.get(f"{API}/businesses/{bid}/campaigns/calendar", headers=h).json()
+    item = entries[0]
+    original_time = item["scheduled_at"][11:16]
+
+    r = client.patch(
+        f"{API}/businesses/{bid}/campaigns/items/{item['id']}/schedule",
+        json={"scheduled_date": "2099-12-25"}, headers=h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["scheduled_at"].startswith("2099-12-25")
+
+    # Reflected in the calendar, and the time of day is preserved.
+    moved = client.get(f"{API}/businesses/{bid}/campaigns/calendar", headers=h).json()
+    m = next(e for e in moved if e["id"] == item["id"])
+    assert m["scheduled_at"][:10] == "2099-12-25"
+    assert m["scheduled_at"][11:16] == original_time
+
+
 def test_campaign_starts_on_chosen_date(client):
     h, bid = _owner(client, email="startdate@example.com")
     camp = client.post(

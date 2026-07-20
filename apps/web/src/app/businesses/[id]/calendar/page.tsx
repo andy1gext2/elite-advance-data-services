@@ -38,6 +38,26 @@ export default function CalendarPage({
   const [entries, setEntries] = useState<CampaignCalendarItem[]>([]);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<CampaignCalendarItem | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
+  // Drag a post onto a day → move it there (keeping its time). Optimistic, with
+  // a revert if the server rejects it.
+  async function reschedule(itemId: string, key: string) {
+    const entry = entries.find((e) => e.id === itemId);
+    if (!entry || entry.scheduled_at.slice(0, 10) === key) return;
+    const prev = entries;
+    setEntries((list) =>
+      list.map((e) =>
+        e.id === itemId ? { ...e, scheduled_at: key + e.scheduled_at.slice(10) } : e
+      )
+    );
+    try {
+      await api.rescheduleCalendarItem(id, itemId, key);
+    } catch (err) {
+      setEntries(prev);
+      setError(err instanceof ApiError ? err.message : "Could not move that post");
+    }
+  }
 
   // Reflect an edited post back into the calendar.
   function onPostSaved(updated: ContentItem) {
@@ -185,7 +205,26 @@ export default function CalendarPage({
                 const posts = byDay.get(key) ?? [];
                 const isToday = key === todayKey;
                 return (
-                  <div key={i} className="min-h-[104px] bg-bg p-1.5">
+                  <div
+                    key={i}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverKey !== key) setDragOverKey(key);
+                    }}
+                    onDragLeave={() =>
+                      setDragOverKey((k) => (k === key ? null : k))
+                    }
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const itemId = e.dataTransfer.getData("text/plain");
+                      setDragOverKey(null);
+                      if (itemId) reschedule(itemId, key);
+                    }}
+                    className={
+                      "min-h-[104px] bg-bg p-1.5 transition-colors " +
+                      (dragOverKey === key ? "bg-brand/10 ring-2 ring-inset ring-brand" : "")
+                    }
+                  >
                     <div className="mb-1 flex items-center justify-between">
                       <span
                         className={
@@ -226,7 +265,7 @@ export default function CalendarPage({
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-zinc-400" /> Skipped (no account)
           </span>
-          <span className="ml-auto italic">Tip: click a post to edit it.</span>
+          <span className="ml-auto italic">Tip: click to edit · drag a post to reschedule.</span>
         </div>
       )}
 
@@ -257,13 +296,25 @@ function DayPost({
   const time = post.scheduled_at.slice(11, 16);
   const text = post.title || post.body || "";
   const editable = Boolean(post.content_item_id);
+  const movable = post.status !== "published";
   return (
     <button
       type="button"
       onClick={() => editable && onSelect(post)}
       disabled={!editable}
-      className="block w-full rounded border border-border bg-surface px-1.5 py-1 text-left transition-colors hover:border-brand disabled:cursor-default disabled:hover:border-border"
-      title={`${CHANNEL_LABELS[post.channel] ?? post.channel} · ${post.campaign_name}\n${text}${editable ? "\n(click to edit)" : ""}`}
+      draggable={movable}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", post.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      className={
+        "block w-full rounded border border-border bg-surface px-1.5 py-1 text-left transition-colors hover:border-brand disabled:hover:border-border " +
+        (movable ? "cursor-grab active:cursor-grabbing" : "disabled:cursor-default")
+      }
+      title={
+        `${CHANNEL_LABELS[post.channel] ?? post.channel} · ${post.campaign_name}\n${text}` +
+        (editable ? "\n(click to edit · drag to reschedule)" : "\n(drag to reschedule)")
+      }
     >
       <div className="flex items-center gap-1">
         <span
