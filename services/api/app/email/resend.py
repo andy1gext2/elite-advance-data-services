@@ -34,4 +34,7 @@ class ResendEmailProvider:
             json=payload,
             timeout=15,
         )
-        resp.raise_for_status()
+        # Surface Resend's own error text (unverified domain, test-mode recipient
+        # restriction, bad key, …) so the failure is diagnosable from the logs.
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Resend API {resp.status_code}: {resp.text}")
