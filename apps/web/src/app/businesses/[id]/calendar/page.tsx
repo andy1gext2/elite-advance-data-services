@@ -64,7 +64,13 @@ export default function CalendarPage({
     setEntries((list) =>
       list.map((e) =>
         e.content_item_id === updated.id
-          ? { ...e, title: updated.title, body: updated.body }
+          ? {
+              ...e,
+              title: updated.title,
+              body: updated.body,
+              image_url: updated.image_url ?? null,
+              video_url: updated.video_url ?? null,
+            }
           : e
       )
     );
@@ -277,6 +283,9 @@ export default function CalendarPage({
             title: editing.title,
             body: editing.body ?? "",
             channel: editing.channel,
+            content_type: editing.content_type ?? undefined,
+            image_url: editing.image_url,
+            video_url: editing.video_url,
           }}
           onClose={() => setEditing(null)}
           onSaved={onPostSaved}

@@ -335,3 +335,24 @@ def test_campaign_rbac(client):
         json={"autopilot_enabled": True, "autopilot_frequency_days": 7, "autopilot_timeframe": "week"},
         headers=viewer_h,
     ).status_code == 403
+
+
+def test_calendar_includes_generated_image(client):
+    h, bid = _owner(client, email="cal-img@example.com")
+    client.post(
+        f"{API}/businesses/{bid}/campaigns/propose",
+        json={"theme": "Photo day", "timeframe": "day"}, headers=h,
+    )
+    entries = client.get(f"{API}/businesses/{bid}/campaigns/calendar", headers=h).json()
+    cid = entries[0]["content_item_id"]
+    # No image yet on the calendar entry.
+    assert entries[0]["image_url"] is None
+
+    # Generate an image on the content item (mock provider).
+    r = client.post(f"{API}/businesses/{bid}/content/{cid}/image", headers=h)
+    assert r.status_code == 200, r.text
+
+    # The calendar entry now carries it, so the modal shows it without regenerating.
+    after = client.get(f"{API}/businesses/{bid}/campaigns/calendar", headers=h).json()
+    e = next(x for x in after if x["content_item_id"] == cid)
+    assert e["image_url"] and e["image_url"].startswith("/media/")

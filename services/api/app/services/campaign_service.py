@@ -180,7 +180,10 @@ def calendar_items(db: Session, *, business_id: uuid.UUID) -> list[dict]:
     """Flatten every campaign's posts into dated calendar entries (bird's-eye view).
     Skips rejected campaigns. Joined with content copy + campaign name for display."""
     rows = db.execute(
-        select(CampaignItem, Campaign.name, ContentItem.title, ContentItem.body)
+        select(
+            CampaignItem, Campaign.name, ContentItem.title, ContentItem.body,
+            ContentItem.image_url, ContentItem.video_url, ContentItem.content_type,
+        )
         .join(Campaign, CampaignItem.campaign_id == Campaign.id)
         .outerjoin(ContentItem, CampaignItem.content_item_id == ContentItem.id)
         .where(
@@ -200,8 +203,11 @@ def calendar_items(db: Session, *, business_id: uuid.UUID) -> list[dict]:
             "content_item_id": item.content_item_id,
             "title": title,
             "body": body,
+            "image_url": image_url,
+            "video_url": video_url,
+            "content_type": content_type,
         }
-        for item, campaign_name, title, body in rows
+        for item, campaign_name, title, body, image_url, video_url, content_type in rows
     ]
 
 

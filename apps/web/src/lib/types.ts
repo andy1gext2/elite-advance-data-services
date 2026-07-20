@@ -317,6 +317,9 @@ export interface CampaignCalendarItem {
   content_item_id: string | null;
   title: string | null;
   body: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  content_type: string | null;
 }
 
 export interface CampaignItem {
