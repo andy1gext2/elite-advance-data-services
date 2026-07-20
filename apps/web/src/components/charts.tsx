@@ -69,7 +69,11 @@ export function HBars({ data }: { data: { label: string; value: number }[] }) {
 // Part-to-whole share of a single measure across categories. One brand hue,
 // stepped by share (largest = solid, smaller = faded) — magnitude, not a rainbow.
 // The legend carries each label + count + %, so identity is never color-alone.
-export function Donut({ data }: { data: { label: string; value: number }[] }) {
+export function Donut({
+  data,
+}: {
+  data: { label: string; value: number; color?: string }[];
+}) {
   const items = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const total = items.reduce((sum, d) => sum + d.value, 0);
   if (total === 0) return <p className="text-sm text-muted">No data yet.</p>;
@@ -81,9 +85,9 @@ export function Donut({ data }: { data: { label: string; value: number }[] }) {
   const arcs = items.map((d, i) => {
     const frac = d.value / total;
     const len = Math.max(frac * C - gap, 0);
-    // Largest slice fully opaque; each smaller step fades toward the ground.
-    const opacity = Math.max(1 - i * 0.16, 0.4);
-    const arc = { len, dash: `${len} ${C - len}`, offset: -offset, opacity };
+    // Per-channel brand color when provided; otherwise fade one brand hue by rank.
+    const opacity = d.color ? 1 : Math.max(1 - i * 0.16, 0.4);
+    const arc = { len, dash: `${len} ${C - len}`, offset: -offset, opacity, color: d.color };
     offset += frac * C;
     return arc;
   });
@@ -99,7 +103,8 @@ export function Donut({ data }: { data: { label: string; value: number }[] }) {
             cy="50"
             r={r}
             fill="none"
-            className="stroke-brand"
+            className={a.color ? undefined : "stroke-brand"}
+            stroke={a.color}
             strokeWidth="15"
             strokeDasharray={a.dash}
             strokeDashoffset={a.offset}
@@ -121,8 +126,12 @@ export function Donut({ data }: { data: { label: string; value: number }[] }) {
         {items.map((d, i) => (
           <li key={d.label} className="flex items-center gap-2 text-sm">
             <span
-              className="h-2.5 w-2.5 shrink-0 rounded-sm bg-brand"
-              style={{ opacity: Math.max(1 - i * 0.16, 0.4) }}
+              className={"h-2.5 w-2.5 shrink-0 rounded-sm " + (d.color ? "" : "bg-brand")}
+              style={
+                d.color
+                  ? { background: d.color }
+                  : { opacity: Math.max(1 - i * 0.16, 0.4) }
+              }
             />
             <span className="min-w-0 flex-1 truncate capitalize text-muted">{d.label}</span>
             <span className="tabular-nums">{d.value}</span>

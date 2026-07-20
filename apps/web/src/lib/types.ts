@@ -364,3 +364,20 @@ export const CHANNEL_LABELS: Record<string, string> = {
   video: "Video",
   generic: "Generic",
 };
+
+// Each channel's dominant brand color (from its app icon), used to color charts
+// so the "content by channel" wheel reads at a glance. Falls back to the app's
+// brand hue for anything unmapped.
+export const CHANNEL_COLORS: Record<string, string> = {
+  instagram: "#E1306C", // Instagram magenta/pink
+  facebook: "#1877F2", // Facebook blue
+  linkedin: "#0A66C2", // LinkedIn blue
+  x: "#000000", // X black
+  threads: "#737373", // Threads (monochrome) — gray, distinct from X
+  google_business: "#4285F4", // Google blue
+  blog: "#F59E0B", // amber (no brand)
+  email: "#EA4335", // red
+  sms: "#22C55E", // green
+  video: "#8B5CF6", // violet
+  generic: "#6B7280", // gray
+};

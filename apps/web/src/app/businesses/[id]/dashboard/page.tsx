@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import {
+  CHANNEL_COLORS,
   CHANNEL_LABELS,
   type CampaignCalendarItem,
   type ContentItem,
@@ -126,7 +127,11 @@ export default function BusinessDashboardPage({
   const k = data?.kpis;
   const channelData = data
     ? Object.entries(data.content_by_channel)
-        .map(([label, value]) => ({ label: CHANNEL_LABELS[label] ?? label, value }))
+        .map(([channel, value]) => ({
+          label: CHANNEL_LABELS[channel] ?? channel,
+          value,
+          color: CHANNEL_COLORS[channel] ?? CHANNEL_COLORS.generic,
+        }))
         .sort((a, b) => b.value - a.value)
     : [];
 
