@@ -72,3 +72,51 @@ def test_upload_rejects_unsupported_type(client):
         headers=h,
     )
     assert r.status_code == 400, r.text
+
+
+def _upload_media(client, h, bid, name="Sale reel", desc="Big summer sale, 30% off"):
+    return client.post(
+        f"{API}/businesses/{bid}/assets",
+        files={"file": ("reel.png", io.BytesIO(_PNG), "image/png")},
+        data={"kind": "media", "name": name, "description": desc},
+        headers=h,
+    )
+
+
+def test_customized_media_asset_and_post(client):
+    h, bid = _owner(client, email="media-asset@example.com")
+    _connect(client, h, bid, "instagram")
+    _connect(client, h, bid, "facebook")
+
+    # Save a customized-media asset (photo + name + description).
+    r = _upload_media(client, h, bid)
+    assert r.status_code == 201, r.text
+    asset = r.json()
+    assert asset["kind"] == "media"
+
+    # Post it to all platforms on a chosen day; AI drafts the caption.
+    r = client.post(
+        f"{API}/businesses/{bid}/content/post-media",
+        json={"asset_id": asset["id"], "scheduled_date": "2099-08-15"}, headers=h,
+    )
+    assert r.status_code == 201, r.text
+    items = r.json()
+    assert {i["channel"] for i in items} == {"instagram", "facebook"}
+    assert all(i["status"] == "scheduled" for i in items)
+    assert all(i["image_url"] for i in items)
+    assert all(i["body"] for i in items)  # AI-drafted caption present
+
+    schedules = client.get(f"{API}/businesses/{bid}/schedules", headers=h).json()
+    assert len(schedules) == 2
+
+
+def test_media_asset_accepts_video(client):
+    h, bid = _owner(client, email="media-vid@example.com")
+    r = client.post(
+        f"{API}/businesses/{bid}/assets",
+        files={"file": ("clip.mp4", io.BytesIO(b"\x00\x00\x00\x18ftypmp42"), "video/mp4")},
+        data={"kind": "media", "name": "Promo clip", "description": "10s teaser"},
+        headers=h,
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["content_type"] == "video/mp4"

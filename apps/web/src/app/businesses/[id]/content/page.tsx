@@ -16,7 +16,7 @@ import { PlatformLogo, PostPreview } from "@/components/PostPreview";
 import { PostEditModal } from "@/components/PostEditModal";
 import { VideoButton } from "@/components/VideoButton";
 import { CampaignStartCalendar } from "@/components/CampaignStartCalendar";
-import { UploadMediaCard } from "@/components/UploadMediaCard";
+import { CustomizedMediaCard } from "@/components/CustomizedMediaCard";
 import { ProgressBar, useEstimatedProgress } from "@/components/Progress";
 import {
   Alert,
@@ -332,7 +332,11 @@ export default function ContentPage({
         </form>
       </Card>
 
-      <UploadMediaCard businessId={id} onPosted={loadItems} />
+      <CustomizedMediaCard
+        businessId={id}
+        mediaAssets={assets.filter((a) => a.kind === "media")}
+        onPosted={loadItems}
+      />
 
       {/* Review queue header */}
       <div className="mt-8">

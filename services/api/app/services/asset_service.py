@@ -11,7 +11,14 @@ from app.models.asset import Asset
 from app.storage.base import Storage
 
 _EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
-ALLOWED_TYPES = set(_EXT)
+_VIDEO_EXT = {"video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm"}
+ALLOWED_TYPES = set(_EXT)  # products/services are image-only (AI grounding)
+# "Customized media" (kind="media") is a ready-made post, so it also accepts video.
+_MEDIA_EXT = {**_EXT, **_VIDEO_EXT}
+
+
+def _ext_map(kind: str) -> dict:
+    return _MEDIA_EXT if kind == "media" else _EXT
 
 
 class AssetNotFound(Exception):
@@ -32,10 +39,10 @@ def create_asset(
     they're described in copy and the AI designs a poster from it."""
     url = key = None
     if data:
-        if content_type not in ALLOWED_TYPES:
+        ext_map = _ext_map(kind)
+        if content_type not in ext_map:
             raise UnsupportedAsset(content_type or "unknown")
-        ext = _EXT[content_type]
-        key = f"assets/{business_id}/{uuid.uuid4().hex}.{ext}"
+        key = f"assets/{business_id}/{uuid.uuid4().hex}.{ext_map[content_type]}"
         url = storage.save(key=key, data=data, content_type=content_type)
     label = name or filename or "Untitled"
     asset = Asset(
@@ -66,10 +73,11 @@ def update_asset(
     if description is not None:
         asset.description = description.strip() or None
     if data:
-        if content_type not in ALLOWED_TYPES:
+        ext_map = _ext_map(asset.kind)
+        if content_type not in ext_map:
             raise UnsupportedAsset(content_type or "unknown")
         old_key = asset.storage_key
-        key = f"assets/{business_id}/{uuid.uuid4().hex}.{_EXT[content_type]}"
+        key = f"assets/{business_id}/{uuid.uuid4().hex}.{ext_map[content_type]}"
         asset.url = storage.save(key=key, data=data, content_type=content_type)
         asset.storage_key = key
         asset.content_type = content_type

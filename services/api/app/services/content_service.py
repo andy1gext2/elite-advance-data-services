@@ -3,7 +3,7 @@ per-tenant AI quota enforcement. All operations are tenant-scoped by business.""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -251,6 +251,68 @@ def create_from_upload(
             status=ContentStatus.SCHEDULED.value,
             created_by=created_by,
             meta={"source": "upload"},
+        )
+        db.add(item)
+        db.flush()
+        scheduling_service.schedule_item(
+            db, business_id=business.id, content_item_id=item.id,
+            social_account_id=account.id, scheduled_at=when,
+        )
+        items.append(item)
+    return items
+
+
+def post_media_asset(
+    db: Session, *, router: AIRouter, business: Business, asset, scheduled_date: date,
+    created_by: uuid.UUID | None,
+) -> list[ContentItem]:
+    """Post a 'customized media' asset — the owner's exact photo/video — to every
+    connected platform on the chosen day, with an AI-drafted caption from its
+    description. Same one-post-per-platform rule as create_from_upload; the media
+    is identical everywhere and the caption is generated once."""
+    if not asset.url:
+        raise UnsupportedUpload("asset has no media")
+    _check_quota(db, business)  # the caption is a billable AI call
+    accounts = scheduling_service.list_accounts(db, business_id=business.id)
+    if not accounts:
+        raise NoConnectedAccounts()
+
+    is_video = (asset.content_type or "").startswith("video/")
+    resp = router.handle(AIRequest(
+        task=TaskType.CONTENT,
+        prompt=(
+            "Write a short, engaging social media caption for this post. "
+            f"Media: {asset.name}. Details: {asset.description or ''}. "
+            "Keep it natural and on-brand."
+        ),
+        business_id=str(business.id),
+        context={
+            "business": build_business_context(business),
+            "channel": "social",
+            "content_type": ContentType.SOCIAL_POST.value,
+        },
+        model=select_model(task=TaskType.CONTENT, content_type=ContentType.SOCIAL_POST.value),
+    ))
+    caption = resp.text.strip()
+    db.add(AiUsage(
+        business_id=business.id, module=TaskType.CONTENT.value,
+        provider=resp.provider, model=resp.model,
+        input_tokens=resp.input_tokens, output_tokens=resp.output_tokens,
+    ))
+
+    when = datetime.combine(scheduled_date, time(12, 0))
+    items: list[ContentItem] = []
+    for account in accounts:
+        item = ContentItem(
+            business_id=business.id,
+            channel=account.platform,
+            content_type=ContentType.SOCIAL_POST.value,
+            body=caption,
+            image_url=None if is_video else asset.url,
+            video_url=asset.url if is_video else None,
+            status=ContentStatus.SCHEDULED.value,
+            created_by=created_by,
+            meta={"source": "customized_media", "asset_id": str(asset.id)},
         )
         db.add(item)
         db.flush()

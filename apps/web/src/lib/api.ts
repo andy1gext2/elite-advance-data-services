@@ -258,7 +258,7 @@ export const api = {
   uploadAsset: async (
     businessId: string,
     file: File | null,
-    meta?: { name?: string; description?: string; kind?: "product" | "service" }
+    meta?: { name?: string; description?: string; kind?: "product" | "service" | "media" }
   ): Promise<Asset> => {
     const form = new FormData();
     if (file) form.append("file", file);
@@ -326,6 +326,12 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
     return (await res.json()) as ContentItem[];
   },
+
+  postMediaAsset: (businessId: string, assetId: string, date: string) =>
+    request<ContentItem[]>(`/api/v1/businesses/${businessId}/content/post-media`, {
+      method: "POST",
+      body: { asset_id: assetId, scheduled_date: date },
+    }),
 
   repurpose: (businessId: string, idea: string) =>
     request<RepurposeResult>(

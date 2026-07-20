@@ -32,7 +32,7 @@ async def upload_asset(
     storage: Storage = Depends(get_storage_dep),
     db: Session = Depends(get_db),
 ) -> AssetOut:
-    kind = "service" if kind == "service" else "product"
+    kind = kind if kind in ("service", "media") else "product"
     name = (name or "").strip() or None
     description = (description or "").strip() or None
 
@@ -40,9 +40,12 @@ async def upload_asset(
     if data is not None and len(data) > MAX_BYTES:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large (max 10 MB)")
 
-    # A product needs a photo (its visual baseline); a service can be copy-only.
+    # A product needs a photo (its visual baseline) and customized media needs the
+    # actual photo/video to post; a service can be copy-only.
     if not data and kind != "service":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a photo for a product.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a photo or video.")
+    if kind == "media" and not (name or description):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Add a name or description so the AI can write the caption.")
     if kind == "service" and not (name or description):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Add a name or description for the service.")
 

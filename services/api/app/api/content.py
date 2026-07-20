@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.ai.registry import get_ai_router
@@ -82,6 +84,43 @@ async def upload_media(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a PNG, JPG, WEBP, GIF image or an MP4/MOV/WEBM video.")
     except content_service.NoConnectedAccounts:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connect at least one social account (Schedule tab) before posting your own media.")
+    db.commit()
+    for item in items:
+        db.refresh(item)
+    return items
+
+
+class PostMediaIn(BaseModel):
+    asset_id: uuid.UUID
+    scheduled_date: date
+
+
+@router.post("/post-media", response_model=list[ContentItemOut], status_code=status.HTTP_201_CREATED)
+def post_media(
+    body: PostMediaIn,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    ai: AIRouter = Depends(get_ai_router),
+    db: Session = Depends(get_db),
+) -> list[ContentItemOut]:
+    """Post a saved 'customized media' asset to every connected platform on the
+    chosen day, with an AI-drafted caption from its description."""
+    try:
+        asset = asset_service.get_asset(db, business_id=ctx.business.id, asset_id=body.asset_id)
+    except asset_service.AssetNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+    if asset.kind != "media":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Not a customized-media asset")
+    try:
+        items = content_service.post_media_asset(
+            db, router=ai, business=ctx.business, asset=asset,
+            scheduled_date=body.scheduled_date, created_by=ctx.membership.user_id,
+        )
+    except content_service.NoConnectedAccounts:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connect at least one social account (Schedule tab) first.")
+    except content_service.AiQuotaExceeded as exc:
+        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=f"Monthly AI quota ({exc.limit}) reached. Upgrade to generate more.")
+    except content_service.UnsupportedUpload:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That media can't be posted.")
     db.commit()
     for item in items:
         db.refresh(item)

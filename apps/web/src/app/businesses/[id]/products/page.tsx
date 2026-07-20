@@ -8,7 +8,7 @@ import { Alert, Button, Card, Field, Input, PageHeader, Textarea } from "@/compo
 import { CardMenu } from "@/components/CardMenu";
 import { AssetEditModal } from "@/components/AssetEditModal";
 
-type Kind = "product" | "service";
+type Kind = "product" | "service" | "media";
 
 export default function ProductsPage({
   params,
@@ -30,6 +30,7 @@ export default function ProductsPage({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isService = kind === "service";
+  const isMedia = kind === "media";
 
   const load = useCallback(async () => {
     setAssets(await api.listAssets(id));
@@ -48,9 +49,10 @@ export default function ProductsPage({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Products need a photo; services need at least a name or description.
+    // Products/media need a file; services need at least a name or description;
+    // media also needs a name/description (the AI writes the caption from it).
     if (!isService && !file) return;
-    if (isService && !name.trim() && !description.trim()) return;
+    if ((isService || isMedia) && !name.trim() && !description.trim()) return;
     setError("");
     setUploading(true);
     try {
@@ -93,7 +95,9 @@ export default function ProductsPage({
 
   const canSubmit = isService
     ? Boolean(name.trim() || description.trim())
-    : Boolean(file);
+    : isMedia
+      ? Boolean(file && (name.trim() || description.trim()))
+      : Boolean(file);
 
   return (
     <>
@@ -109,16 +113,16 @@ export default function ProductsPage({
       <Card className="mt-6">
         {/* Product / Service toggle */}
         <div className="mb-5 inline-flex rounded-xl border border-border bg-bg p-1">
-          {(["product", "service"] as const).map((k) => (
+          {(["product", "service", "media"] as const).map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => setKind(k)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
                 kind === k ? "bg-brand text-brand-fg" : "text-muted hover:text-fg"
               }`}
             >
-              {k === "product" ? "📦 Product" : "🛠 Service"}
+              {k === "product" ? "📦 Product" : k === "service" ? "🛠 Service" : "🎬 Customized media"}
             </button>
           ))}
         </div>
@@ -136,11 +140,19 @@ export default function ProductsPage({
           >
             {file ? (
               <>
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={file.name}
-                  className="h-28 w-28 rounded-lg object-cover"
-                />
+                {file.type.startsWith("video/") ? (
+                  <video
+                    src={URL.createObjectURL(file)}
+                    className="h-28 w-28 rounded-lg object-cover"
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="h-28 w-28 rounded-lg object-cover"
+                  />
+                )}
                 <span className="text-xs text-muted">{file.name} · click to change</span>
               </>
             ) : isService ? (
@@ -154,6 +166,14 @@ export default function ProductsPage({
                   design the poster from your description.
                 </span>
               </>
+            ) : isMedia ? (
+              <>
+                <span className="text-3xl">🎬</span>
+                <span className="text-sm font-medium">Drop a photo or video, or click to browse</span>
+                <span className="text-xs text-muted">
+                  This exact media gets posted — the AI writes the caption from your description.
+                </span>
+              </>
             ) : (
               <>
                 <span className="text-3xl">📦</span>
@@ -164,7 +184,11 @@ export default function ProductsPage({
             <input
               ref={fileRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept={
+                isMedia
+                  ? "image/png,image/jpeg,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+                  : "image/png,image/jpeg,image/webp,image/gif"
+              }
               className="hidden"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
@@ -172,14 +196,16 @@ export default function ProductsPage({
 
           {/* Details */}
           <div className="space-y-4">
-            <Field label={isService ? "Service name" : "Product name"}>
+            <Field label={isService ? "Service name" : isMedia ? "Media name" : "Product name"}>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={
                   isService
                     ? "Same-Day Gutter Cleaning"
-                    : "Ethiopia Single-Origin Beans"
+                    : isMedia
+                      ? "Summer Sale Reel"
+                      : "Ethiopia Single-Origin Beans"
                 }
               />
             </Field>
@@ -187,7 +213,9 @@ export default function ProductsPage({
               label={
                 isService
                   ? "Describe your service (the AI's navigator)"
-                  : "Short description (the AI's navigator)"
+                  : isMedia
+                    ? "Description (the AI writes the caption from this)"
+                    : "Short description (the AI's navigator)"
               }
             >
               <Textarea
@@ -207,7 +235,9 @@ export default function ProductsPage({
                   ? "Saving…"
                   : isService
                     ? "Add service"
-                    : "Add product"}
+                    : isMedia
+                      ? "Add media"
+                      : "Add product"}
               </Button>
             </div>
           </div>
@@ -225,6 +255,8 @@ export default function ProductsPage({
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {assets.map((a) => {
             const isSvc = a.kind === "service";
+            const isMed = a.kind === "media";
+            const isVid = (a.content_type ?? "").startsWith("video/");
             return (
             <Card key={a.id} className="relative flex gap-3 p-3">
               <div className="absolute right-2 top-2">
@@ -236,14 +268,22 @@ export default function ProductsPage({
                 />
               </div>
               {a.url ? (
-                <img
-                  src={a.url}
-                  alt={a.name ?? a.filename}
-                  className="h-20 w-20 shrink-0 rounded-lg object-cover"
-                />
+                isVid ? (
+                  <video
+                    src={a.url}
+                    className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={a.url}
+                    alt={a.name ?? a.filename}
+                    className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                  />
+                )
               ) : (
                 <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-bg text-2xl">
-                  {isSvc ? "🛠" : "📦"}
+                  {isSvc ? "🛠" : isMed ? "🎬" : "📦"}
                 </div>
               )}
               <div className="flex min-w-0 flex-1 flex-col">
@@ -252,7 +292,7 @@ export default function ProductsPage({
                     {a.name ?? a.filename}
                   </p>
                   <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">
-                    {isSvc ? "Service" : "Product"}
+                    {isSvc ? "Service" : isMed ? "Media" : "Product"}
                   </span>
                 </div>
                 {a.description ? (
