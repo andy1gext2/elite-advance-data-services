@@ -286,9 +286,12 @@ export default function LandingPage() {
       <footer className="border-t border-border px-6 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 text-sm text-muted sm:flex-row">
           <span>© 2026 Elite Advance Data Services</span>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-6">
             <a href="#features" className="hover:text-fg">Features</a>
             <a href="#pricing" className="hover:text-fg">Pricing</a>
+            <Link href="/privacy" className="hover:text-fg">Privacy</Link>
+            <Link href="/terms" className="hover:text-fg">Terms</Link>
+            <Link href="/data-deletion" className="hover:text-fg">Data deletion</Link>
             <Link href="/login" className="hover:text-fg">Sign in</Link>
           </div>
         </div>
