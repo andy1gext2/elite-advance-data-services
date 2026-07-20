@@ -101,10 +101,13 @@ export function Donut({
 
   return (
     <div className="flex flex-col items-center">
+      {/* Pad the viewBox so the hovered slice (stroke grows 14→20, i.e. +3 past
+          the resting outer radius of 49) has room instead of being clipped at the
+          edge by the SVG viewport or the rounded card around it. Center stays 50,50. */}
       <svg
-        viewBox="0 0 100 100"
+        viewBox="-6 -6 112 112"
         style={{ height: size, width: size }}
-        className="-rotate-90"
+        className="-rotate-90 overflow-visible"
       >
         <circle cx="50" cy="50" r={r} fill="none" className="stroke-border" strokeWidth="14" />
         {arcs.map((a, i) => {
