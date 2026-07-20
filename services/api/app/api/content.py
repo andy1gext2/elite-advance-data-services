@@ -222,18 +222,24 @@ def update_content(
     return item
 
 
+class ImageGenerateIn(BaseModel):
+    asset_id: uuid.UUID | None = None
+    prompt: str | None = None  # the owner's edited "image vision" (optional)
+
+
 @router.post("/{item_id}/image", response_model=ContentItemOut)
 def generate_image(
     item_id: uuid.UUID,
-    asset_id: uuid.UUID | None = Query(default=None),
+    body: ImageGenerateIn | None = None,
     ctx: TenantContext = Depends(require_role(Role.EDITOR)),
     images: ImageProvider = Depends(get_image_provider_dep),
     storage: Storage = Depends(get_storage_dep),
     db: Session = Depends(get_db),
 ) -> ContentItemOut:
     """Generate an on-brand visual for this post. Pass `asset_id` to ground the
-    image on an uploaded product photo (mock placeholder until a real image
-    provider + key are configured)."""
+    image on an uploaded product photo, and/or `prompt` (the edited image vision)
+    to steer the visual."""
+    payload = body or ImageGenerateIn()
     try:
         item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
     except content_service.ContentNotFound:
@@ -241,14 +247,14 @@ def generate_image(
 
     # Ground on the explicitly-chosen product, else the post's own campaign product,
     # so a product post's image always features that product.
-    aid = asset_id if asset_id is not None else item.product_asset_id
+    aid = payload.asset_id if payload.asset_id is not None else item.product_asset_id
     reference = None
     poster = False
     if aid is not None:
         try:
             asset = asset_service.get_asset(db, business_id=ctx.business.id, asset_id=aid)
         except asset_service.AssetNotFound:
-            if asset_id is not None:
+            if payload.asset_id is not None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product image not found")
             asset = None  # the campaign's product was deleted — generate ungrounded
         if asset is not None:
@@ -262,7 +268,7 @@ def generate_image(
     try:
         item = image_service.generate_image(
             db, provider=images, storage=storage, business=ctx.business,
-            item=item, reference=reference, poster=poster,
+            item=item, reference=reference, poster=poster, prompt=payload.prompt,
         )
     except image_service.ImageQuotaExceeded as exc:
         raise HTTPException(
@@ -272,6 +278,30 @@ def generate_image(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.post("/{item_id}/image/vision", response_model=VideoScriptOut)
+def write_image_vision(
+    item_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    ai: AIRouter = Depends(get_ai_router),
+    db: Session = Depends(get_db),
+) -> VideoScriptOut:
+    """Have Claude write an editable image prompt ("image vision") for this post,
+    so the owner can steer the visual before generating."""
+    try:
+        item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
+    except content_service.ContentNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
+    try:
+        vision = image_service.generate_image_vision(db, router=ai, business=ctx.business, item=item)
+    except content_service.AiQuotaExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Monthly AI quota ({exc.limit}) reached. Upgrade to generate more.",
+        )
+    db.commit()
+    return VideoScriptOut(prompt=vision)
 
 
 @router.post("/{item_id}/video/script", response_model=VideoScriptOut)

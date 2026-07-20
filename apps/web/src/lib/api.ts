@@ -216,13 +216,23 @@ export const api = {
       { method: "PATCH", body: patch }
     ),
 
-  generateImage: (businessId: string, itemId: string, assetId?: string) => {
-    const q = assetId ? `?asset_id=${assetId}` : "";
-    return request<ContentItem>(
-      `/api/v1/businesses/${businessId}/content/${itemId}/image${q}`,
+  generateImage: (
+    businessId: string,
+    itemId: string,
+    assetId?: string,
+    prompt?: string
+  ) =>
+    request<ContentItem>(
+      `/api/v1/businesses/${businessId}/content/${itemId}/image`,
+      { method: "POST", body: { asset_id: assetId ?? null, prompt: prompt ?? null } }
+    ),
+
+  // Have Claude draft an editable image prompt ("image vision") for a post.
+  generateImageVision: (businessId: string, itemId: string) =>
+    request<{ prompt: string }>(
+      `/api/v1/businesses/${businessId}/content/${itemId}/image/vision`,
       { method: "POST" }
-    );
-  },
+    ),
 
   // Have Claude write the 8-second vision for this post (preview/edit before rendering).
   generateVideoScript: (businessId: string, itemId: string) =>

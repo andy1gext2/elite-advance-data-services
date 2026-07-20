@@ -93,7 +93,7 @@ def test_generate_image_grounded_on_product(client):
     # Ground the generated image on the uploaded product.
     r = client.post(
         f"{API}/businesses/{bid}/content/{item['id']}/image",
-        params={"asset_id": aid}, headers=h,
+        json={"asset_id": aid}, headers=h,
     )
     assert r.status_code == 200, r.text
     assert r.json()["image_url"].startswith("/media/")
@@ -102,7 +102,7 @@ def test_generate_image_grounded_on_product(client):
     import uuid
     bad = client.post(
         f"{API}/businesses/{bid}/content/{item['id']}/image",
-        params={"asset_id": str(uuid.uuid4())}, headers=h,
+        json={"asset_id": str(uuid.uuid4())}, headers=h,
     )
     assert bad.status_code == 404
 
@@ -123,7 +123,7 @@ def test_service_image_is_a_poster(client):
 
     r = client.post(
         f"{API}/businesses/{bid}/content/{item['id']}/image",
-        params={"asset_id": aid}, headers=h,
+        json={"asset_id": aid}, headers=h,
     )
     assert r.status_code == 200, r.text
     out = r.json()

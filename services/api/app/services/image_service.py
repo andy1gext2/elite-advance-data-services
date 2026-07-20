@@ -11,13 +11,29 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.ai.base import AIRequest, TaskType
+from app.ai.model_policy import select_model
+from app.ai.router import AIRouter
 from app.images.base import ImageProvider, ReferenceImage
 from app.models.ai_usage import AiUsage
 from app.models.asset import Asset
 from app.models.business import Business
 from app.models.content import ContentItem
 from app.models.enums import UNLIMITED
+from app.services.content_service import AiQuotaExceeded
+from app.services.content_service import usage_this_month as ai_usage_this_month
+from app.services.rag_service import build_business_context
 from app.storage.base import Storage
+
+# Art-director system prompt: Claude drafts a concise image-generation prompt the
+# owner can edit ("image vision"), mirroring the video vision.
+_IMAGE_VISION_SYSTEM = (
+    "You are an art director writing a concise image-generation prompt for a SINGLE "
+    "on-brand social media photo. In 2-4 vivid sentences, describe the subject, "
+    "composition, setting, lighting, mood, and visual style. Keep it realistic and "
+    "brand-appropriate. Do NOT include overlaid text, captions, or logos. Output "
+    "ONLY the prompt."
+)
 
 _SQUARE_CHANNELS = {"instagram", "threads"}
 _EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/svg+xml": "svg"}
@@ -173,15 +189,70 @@ def generate_asset_flyer(
     return asset
 
 
+def generate_image_vision(
+    db: Session, *, router: AIRouter, business: Business, item: ContentItem
+) -> str:
+    """Claude drafts an editable image prompt ("image vision") the owner can tweak
+    before generating — the visual counterpart to the video vision. Billable text
+    call, so it respects the monthly AI text quota."""
+    limit = business.plan.ai_monthly_quota if business.plan else UNLIMITED
+    if limit != UNLIMITED and ai_usage_this_month(db, business.id) >= limit:
+        raise AiQuotaExceeded(limit)
+
+    lines = [f"Brand: {business.name}."]
+    if business.industry:
+        lines.append(f"Industry: {business.industry}.")
+    if business.tone:
+        lines.append(f"Tone/mood: {business.tone}.")
+    if business.brand_voice:
+        lines.append(f"Brand character: {business.brand_voice}.")
+    if item.product_asset_id:
+        product = db.get(Asset, item.product_asset_id)
+        if product:
+            note = f" {product.description}" if product.description else ""
+            lines.append(f"Feature this product, true to life: {product.name or product.filename}.{note}")
+
+    concept = "\n".join(p for p in (item.title, item.body) if p).strip()
+    prompt = "\n".join(lines) + f"\n\nMarketing post:\n{concept}\n\nWrite the image prompt."
+
+    resp = router.handle(AIRequest(
+        task=TaskType.VIDEO_SCRIPT,  # raw provider call with our system prompt
+        prompt=prompt,
+        business_id=str(business.id),
+        context={"business": build_business_context(business)},
+        system=_IMAGE_VISION_SYSTEM,
+        model=select_model(task=TaskType.VIDEO_SCRIPT),
+        max_tokens=400,
+        temperature=0.8,
+    ))
+    db.add(AiUsage(
+        business_id=business.id, module="image_script",
+        provider=resp.provider, model=resp.model,
+        input_tokens=resp.input_tokens, output_tokens=resp.output_tokens,
+    ))
+    return resp.text.strip()
+
+
 def generate_image(
     db, *, provider: ImageProvider, storage: Storage, business: Business,
     item: ContentItem, reference: ReferenceImage | None = None, poster: bool = False,
+    prompt: str | None = None,
 ) -> ContentItem:
     """Generate + store an on-brand visual. Enforces the tenant's monthly image
     quota (raises ImageQuotaExceeded). `poster=True` renders a promotional poster
-    for a service instead of a product photo."""
+    for a service. Pass `prompt` (the owner's edited image vision) to override the
+    auto-built prompt — grounding on a reference product is still appended so the
+    product stays in-frame and the campaign stays locked in."""
     _check_quota(db, business)
-    prompt = build_prompt(business, item, grounded=reference is not None, poster=poster)
+    if prompt and prompt.strip():
+        prompt = prompt.strip()
+        if reference is not None:
+            prompt += (
+                " The uploaded product MUST appear as the clear focal subject, matching "
+                "the reference photo exactly — same colors, materials, and details."
+            )
+    else:
+        prompt = build_prompt(business, item, grounded=reference is not None, poster=poster)
     aspect = "1:1" if item.channel in _SQUARE_CHANNELS else "16:9"
     result = provider.generate(prompt=prompt, aspect=aspect, reference=reference)
 

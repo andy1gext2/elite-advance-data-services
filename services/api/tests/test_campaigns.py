@@ -356,3 +356,25 @@ def test_calendar_includes_generated_image(client):
     after = client.get(f"{API}/businesses/{bid}/campaigns/calendar", headers=h).json()
     e = next(x for x in after if x["content_item_id"] == cid)
     assert e["image_url"] and e["image_url"].startswith("/media/")
+
+
+def test_image_vision_and_custom_prompt(client):
+    h, bid = _owner(client, email="imgvision@example.com")
+    camp = client.post(
+        f"{API}/businesses/{bid}/campaigns/propose",
+        json={"theme": "Vision", "timeframe": "day"}, headers=h,
+    ).json()
+    cid = camp["items"][0]["content_item_id"]
+
+    # Claude drafts an editable image vision.
+    r = client.post(f"{API}/businesses/{bid}/content/{cid}/image/vision", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["prompt"]
+
+    # Generating with a custom prompt (edited vision) works and is honored.
+    r = client.post(
+        f"{API}/businesses/{bid}/content/{cid}/image",
+        json={"prompt": "A neon-lit rainy street, cinematic, moody"}, headers=h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["image_url"]

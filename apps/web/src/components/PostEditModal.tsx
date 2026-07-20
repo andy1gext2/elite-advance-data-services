@@ -55,6 +55,11 @@ export function PostEditModal({
   // the owner can steer the render (or leave blank to let Claude write it).
   const [vision, setVision] = useState("");
   const [visionLoading, setVisionLoading] = useState(false);
+  // The editable image prompt ("image vision") — the visual counterpart to the
+  // video vision, so owners can steer the image and keep the campaign focused.
+  const [imageVision, setImageVision] = useState("");
+  const [imageVisionLoading, setImageVisionLoading] = useState(false);
+  const [visionTab, setVisionTab] = useState<"image" | "video">("image");
 
   async function writeVision() {
     setError("");
@@ -66,6 +71,19 @@ export function PostEditModal({
       setError(err instanceof ApiError ? err.message : "Could not write the vision");
     } finally {
       setVisionLoading(false);
+    }
+  }
+
+  async function writeImageVision() {
+    setError("");
+    setImageVisionLoading(true);
+    try {
+      const { prompt } = await api.generateImageVision(businessId, post.id);
+      setImageVision(prompt);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not write the vision");
+    } finally {
+      setImageVisionLoading(false);
     }
   }
 
@@ -86,7 +104,12 @@ export function PostEditModal({
     setError("");
     setImaging(true);
     try {
-      const updated = await api.generateImage(businessId, post.id, productId || undefined);
+      const updated = await api.generateImage(
+        businessId,
+        post.id,
+        productId || undefined,
+        imageVision.trim() || undefined
+      );
       setImageUrl(updated.image_url ?? null);
       onSaved(updated); // image is persisted immediately, so reflect it upstream
     } catch (err) {
@@ -204,33 +227,81 @@ export function PostEditModal({
               videoUrl={videoUrl}
             />
 
-            {/* The 8-second video vision — see it and edit it before rendering. */}
+            {/* Vision editors — steer the image and the video before generating. */}
             <div className="mt-3 rounded-lg border border-border bg-bg p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                  🎬 Video vision
-                </p>
-                <button
-                  type="button"
-                  onClick={writeVision}
-                  disabled={visionLoading}
-                  className="text-xs text-brand hover:underline disabled:opacity-50"
-                >
-                  {visionLoading
-                    ? "Writing…"
-                    : vision
-                      ? "↻ Rewrite with AI"
-                      : "✨ Write the vision with AI"}
-                </button>
+              <div className="mb-2 inline-flex rounded-lg border border-border bg-surface p-0.5 text-xs">
+                {(["image", "video"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setVisionTab(t)}
+                    className={
+                      "rounded-md px-2.5 py-1 font-medium transition-colors " +
+                      (visionTab === t ? "bg-brand text-brand-fg" : "text-muted hover:text-fg")
+                    }
+                  >
+                    {t === "image" ? "🖼 Image vision" : "🎬 Video vision"}
+                  </button>
+                ))}
               </div>
-              <textarea
-                value={vision}
-                onChange={(e) => setVision(e.target.value)}
-                rows={4}
-                maxLength={4000}
-                placeholder="Click ✨ to have Claude write the 8-second shot, or type your own vision. Used when you generate the video."
-                className="mt-2 w-full resize-y rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
-              />
+
+              {visionTab === "image" ? (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted">
+                      Steer the visual — used when you Generate image.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={writeImageVision}
+                      disabled={imageVisionLoading}
+                      className="shrink-0 text-xs text-brand hover:underline disabled:opacity-50"
+                    >
+                      {imageVisionLoading
+                        ? "Writing…"
+                        : imageVision
+                          ? "↻ Rewrite with AI"
+                          : "✨ Write with AI"}
+                    </button>
+                  </div>
+                  <textarea
+                    value={imageVision}
+                    onChange={(e) => setImageVision(e.target.value)}
+                    rows={4}
+                    maxLength={4000}
+                    placeholder="Describe the visual you want — or click ✨. Used when you generate the image."
+                    className="mt-2 w-full resize-y rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+                  />
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted">
+                      The 8-second shot Veo renders — used when you Generate video.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={writeVision}
+                      disabled={visionLoading}
+                      className="shrink-0 text-xs text-brand hover:underline disabled:opacity-50"
+                    >
+                      {visionLoading
+                        ? "Writing…"
+                        : vision
+                          ? "↻ Rewrite with AI"
+                          : "✨ Write with AI"}
+                    </button>
+                  </div>
+                  <textarea
+                    value={vision}
+                    onChange={(e) => setVision(e.target.value)}
+                    rows={4}
+                    maxLength={4000}
+                    placeholder="Click ✨ to have Claude write the 8-second shot, or type your own vision. Used when you generate the video."
+                    className="mt-2 w-full resize-y rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>
