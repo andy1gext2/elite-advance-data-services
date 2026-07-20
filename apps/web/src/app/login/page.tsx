@@ -15,10 +15,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
 
   useEffect(() => {
     if (!loading && me) router.replace("/dashboard");
   }, [loading, me, router]);
+
+  // Show a confirmation after a successful password reset (redirected with ?reset=1).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reset") === "1") {
+      setResetDone(true);
+    }
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,6 +44,11 @@ export default function LoginPage() {
 
   return (
     <AuthLayout title="Welcome back" subtitle="Sign in to your marketing HQ.">
+      {resetDone && (
+        <p className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400">
+          Password updated. Sign in with your new password.
+        </p>
+      )}
       <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Email">
           <Input
@@ -54,6 +67,14 @@ export default function LoginPage() {
             required
           />
         </Field>
+        <div className="text-right">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-brand hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <Alert>{error}</Alert>
         <Button type="submit" loading={busy} className="w-full">
           Sign in

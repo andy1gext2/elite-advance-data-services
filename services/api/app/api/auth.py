@@ -18,13 +18,16 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.auth import (
+    ForgotPasswordIn,
+    ForgotPasswordOut,
     LoginIn,
     MeOut,
     RefreshIn,
+    ResetPasswordIn,
     SignupIn,
     TokenOut,
 )
-from app.services import auth_service
+from app.services import auth_service, password_reset_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -70,6 +73,33 @@ def refresh(body: RefreshIn, db: Session = Depends(get_db)) -> TokenOut:
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     return _tokens(user)
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordOut)
+def forgot_password(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> ForgotPasswordOut:
+    """Email a single-use reset code. Always returns the same generic message so
+    it can't be used to probe which emails are registered."""
+    code = password_reset_service.request_reset(db, email=body.email)
+    db.commit()
+    # Only surface the code outside production (mock email) so you can test
+    # without a real inbox; production never returns it.
+    dev_code = code if (code and not get_settings().is_production) else None
+    return ForgotPasswordOut(dev_code=dev_code)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(body: ResetPasswordIn, db: Session = Depends(get_db)) -> None:
+    """Verify the emailed code and set a new password."""
+    try:
+        password_reset_service.reset_password(
+            db, email=body.email, code=body.code, new_password=body.new_password
+        )
+    except password_reset_service.InvalidResetCode:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code.",
+        )
+    db.commit()
 
 
 @router.get("/me", response_model=MeOut)

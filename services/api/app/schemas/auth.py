@@ -21,6 +21,23 @@ class RefreshIn(BaseModel):
     refresh_token: str
 
 
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordOut(BaseModel):
+    # Generic acknowledgement (never reveals whether the email exists).
+    message: str = "If that email is registered, a reset code is on its way."
+    # Present only in non-production (mock email) so you can test without an inbox.
+    dev_code: str | None = None
+
+
+class ResetPasswordIn(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=12)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class TokenOut(BaseModel):
     access_token: str
     refresh_token: str

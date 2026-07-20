@@ -91,6 +91,22 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
 
+    # Email (password-reset codes, notifications). "mock" logs the message (dev —
+    # the reset code also appears in the API response in non-production). Set
+    # email_provider=smtp + the SMTP_* vars (e.g. Resend/SendGrid/SES/Gmail) to
+    # actually deliver mail. email_from must be a verified sender on your provider.
+    email_provider: str = "mock"
+    email_from: str = "Elite Advance <no-reply@example.com>"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+
+    # Password reset codes.
+    reset_code_ttl_minutes: int = 15
+    reset_max_attempts: int = 5
+
     # Operator/admin. Comma-separated emails allowed to see the cross-tenant cost
     # dashboard (GET /admin/usage). Defaults to the platform owner.
     platform_admin_emails: str = "andy1gext2@gmail.com"

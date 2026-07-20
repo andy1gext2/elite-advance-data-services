@@ -141,6 +141,19 @@ export const api = {
 
   me: () => request<Me>("/api/v1/auth/me"),
 
+  forgotPassword: (email: string) =>
+    request<{ message: string; dev_code: string | null }>(
+      "/api/v1/auth/forgot-password",
+      { method: "POST", auth: false, body: { email } }
+    ),
+
+  resetPassword: (email: string, code: string, new_password: string) =>
+    request<void>("/api/v1/auth/reset-password", {
+      method: "POST",
+      auth: false,
+      body: { email, code, new_password },
+    }),
+
   // --- operator (admin-only) ---
   adminUsage: () => request<AdminUsage>("/api/v1/admin/usage"),
 
