@@ -275,6 +275,26 @@ export const api = {
     return (await res.json()) as Asset;
   },
 
+  updateAsset: async (
+    businessId: string,
+    assetId: string,
+    fields: { name?: string; description?: string; file?: File | null }
+  ): Promise<Asset> => {
+    const form = new FormData();
+    if (fields.name !== undefined) form.append("name", fields.name);
+    if (fields.description !== undefined) form.append("description", fields.description);
+    if (fields.file) form.append("file", fields.file);
+    const res = await fetch(`/api/v1/businesses/${businessId}/assets/${assetId}`, {
+      method: "PATCH",
+      headers: tokenStore.access
+        ? { Authorization: `Bearer ${tokenStore.access}` }
+        : {},
+      body: form,
+    });
+    if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+    return (await res.json()) as Asset;
+  },
+
   // Generate an AI flyer/poster for a service, stored on the asset itself. That
   // exact image is reused across every post of a campaign promoting the service.
   generateFlyer: (businessId: string, assetId: string) =>

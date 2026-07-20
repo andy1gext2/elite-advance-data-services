@@ -54,6 +54,31 @@ def list_assets(db: Session, *, business_id: uuid.UUID) -> list[Asset]:
     ).all())
 
 
+def update_asset(
+    db: Session, *, storage: Storage, business_id: uuid.UUID, asset_id: uuid.UUID,
+    name: str | None = None, description: str | None = None,
+    data: bytes | None = None, content_type: str | None = None,
+) -> Asset:
+    """Edit a product/service's name, description, and optionally replace its photo."""
+    asset = get_asset(db, business_id=business_id, asset_id=asset_id)  # raises AssetNotFound
+    if name is not None and name.strip():
+        asset.name = name.strip()[:200]
+    if description is not None:
+        asset.description = description.strip() or None
+    if data:
+        if content_type not in ALLOWED_TYPES:
+            raise UnsupportedAsset(content_type or "unknown")
+        old_key = asset.storage_key
+        key = f"assets/{business_id}/{uuid.uuid4().hex}.{_EXT[content_type]}"
+        asset.url = storage.save(key=key, data=data, content_type=content_type)
+        asset.storage_key = key
+        asset.content_type = content_type
+        if old_key and old_key != key:
+            storage.delete(old_key)
+    db.flush()
+    return asset
+
+
 def get_asset(db: Session, *, business_id: uuid.UUID, asset_id: uuid.UUID) -> Asset:
     asset = db.scalar(
         select(Asset).where(Asset.id == asset_id, Asset.business_id == business_id)

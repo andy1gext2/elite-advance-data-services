@@ -195,3 +195,22 @@ def test_assets_rbac_and_isolation(client):
     # Other tenant can't see these assets.
     other_h, _ = _owner(client, email="assetother@example.com")
     assert client.get(f"{API}/businesses/{bid}/assets", headers=other_h).status_code == 404
+
+
+def test_edit_asset_updates_name_and_description(client):
+    h, bid = _owner(client, email="edit-asset@example.com")
+    asset = _upload(client, h, bid, name="Old", data=_PNG).json()
+    aid = asset["id"]
+
+    r = client.patch(
+        f"{API}/businesses/{bid}/assets/{aid}",
+        data={"name": "New Name", "description": "Now with a description"},
+        headers=h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "New Name"
+    assert r.json()["description"] == "Now with a description"
+
+    # Persisted.
+    listed = client.get(f"{API}/businesses/{bid}/assets", headers=h).json()
+    assert listed[0]["name"] == "New Name"

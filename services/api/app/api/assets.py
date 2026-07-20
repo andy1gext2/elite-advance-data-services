@@ -72,6 +72,34 @@ def list_assets(
     return asset_service.list_assets(db, business_id=ctx.business.id)
 
 
+@router.patch("/{asset_id}", response_model=AssetOut)
+async def edit_asset(
+    asset_id: uuid.UUID,
+    file: UploadFile | None = File(default=None),
+    name: str | None = Form(default=None),
+    description: str | None = Form(default=None),
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    storage: Storage = Depends(get_storage_dep),
+    db: Session = Depends(get_db),
+) -> AssetOut:
+    data = await file.read() if file is not None else None
+    if data is not None and len(data) > MAX_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large (max 10 MB)")
+    try:
+        asset = asset_service.update_asset(
+            db, storage=storage, business_id=ctx.business.id, asset_id=asset_id,
+            name=name, description=description, data=data,
+            content_type=file.content_type if file is not None else None,
+        )
+    except asset_service.AssetNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    except asset_service.UnsupportedAsset:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Photo must be a PNG, JPG, WEBP, or GIF")
+    db.commit()
+    db.refresh(asset)
+    return asset
+
+
 @router.post("/{asset_id}/flyer", response_model=AssetOut)
 def generate_flyer(
     asset_id: uuid.UUID,

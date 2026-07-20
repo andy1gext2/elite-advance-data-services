@@ -5,6 +5,8 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { Asset } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, PageHeader, Textarea } from "@/components/ui";
+import { CardMenu } from "@/components/CardMenu";
+import { AssetEditModal } from "@/components/AssetEditModal";
 
 type Kind = "product" | "service";
 
@@ -15,6 +17,7 @@ export default function ProductsPage({
 }) {
   const { id } = use(params);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [editing, setEditing] = useState<Asset | null>(null);
   const [error, setError] = useState("");
 
   // New-entry form.
@@ -223,7 +226,15 @@ export default function ProductsPage({
           {assets.map((a) => {
             const isSvc = a.kind === "service";
             return (
-            <Card key={a.id} className="flex gap-3 p-3">
+            <Card key={a.id} className="relative flex gap-3 p-3">
+              <div className="absolute right-2 top-2">
+                <CardMenu
+                  items={[
+                    { label: "Edit", onClick: () => setEditing(a) },
+                    { label: "Delete", danger: true, onClick: () => remove(a.id) },
+                  ]}
+                />
+              </div>
               {a.url ? (
                 <img
                   src={a.url}
@@ -273,17 +284,22 @@ export default function ProductsPage({
                   </>
                 )}
 
-                <button
-                  onClick={() => remove(a.id)}
-                  className="mt-auto self-start pt-2 text-xs text-red-500 hover:underline"
-                >
-                  Delete
-                </button>
               </div>
             </Card>
             );
           })}
         </div>
+      )}
+
+      {editing && (
+        <AssetEditModal
+          businessId={id}
+          asset={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) =>
+            setAssets((list) => list.map((a) => (a.id === updated.id ? updated : a)))
+          }
+        />
       )}
     </>
   );
