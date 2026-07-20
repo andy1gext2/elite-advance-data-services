@@ -50,10 +50,14 @@ def seed_default_plans(db: Session) -> None:
         if current is None:
             db.add(Plan(**spec))
         else:
-            # Keep advertised price + display name in sync with the source-of-truth
-            # spec so pricing changes reach already-seeded (dev) DBs on restart.
-            current.price_monthly = spec["price_monthly"]
-            current.name = spec["name"]
+            # DEFAULT_PLANS is the single source of truth: sync every field (quotas,
+            # limits, features, price, name) onto already-seeded rows on restart.
+            # This self-heals plans that drifted from the spec — e.g. an Enterprise
+            # row whose video_monthly_quota isn't UNLIMITED, or a Starter row still
+            # carrying an old migration default. `tier` is the key, so never touch it.
+            for field, value in spec.items():
+                if field != "tier":
+                    setattr(current, field, value)
     db.flush()
 
 

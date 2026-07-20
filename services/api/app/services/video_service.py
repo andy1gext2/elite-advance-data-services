@@ -18,6 +18,7 @@ from app.models.business import Business
 from app.models.content import ContentItem
 from app.models.enums import UNLIMITED
 from app.models.video_job import VideoJob
+from app.services.operator import is_operator_business
 from app.services.content_service import (
     AiQuotaExceeded,
     usage_this_month as ai_usage_this_month,
@@ -66,7 +67,8 @@ def usage_this_month(db: Session, business_id: uuid.UUID) -> int:
 def quota(db: Session, business: Business) -> dict:
     limit = business.plan.video_monthly_quota if business.plan else UNLIMITED
     used = usage_this_month(db, business.id)
-    unlimited = limit == UNLIMITED
+    # Platform operators bypass the plan cap entirely (stress-testing).
+    unlimited = limit == UNLIMITED or is_operator_business(db, business)
     return {
         "used": used,
         "limit": None if unlimited else limit,
@@ -79,6 +81,8 @@ def quota(db: Session, business: Business) -> dict:
 def _consume_allowance(db: Session, business: Business) -> None:
     """Allow a render if within the monthly quota; otherwise spend a paid credit.
     Raises VideoQuotaExceeded when both the monthly quota and credits are exhausted."""
+    if is_operator_business(db, business):
+        return  # platform operator — unlimited renders for stress-testing
     limit = business.plan.video_monthly_quota if business.plan else UNLIMITED
     if limit == UNLIMITED:
         return

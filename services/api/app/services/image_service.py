@@ -22,6 +22,7 @@ from app.models.content import ContentItem
 from app.models.enums import UNLIMITED
 from app.services.content_service import AiQuotaExceeded
 from app.services.content_service import usage_this_month as ai_usage_this_month
+from app.services.operator import is_operator_business
 from app.services.rag_service import build_business_context
 from app.storage.base import Storage
 
@@ -67,7 +68,8 @@ def usage_this_month(db: Session, business_id: uuid.UUID) -> int:
 def quota(db: Session, business: Business) -> dict:
     limit = business.plan.image_monthly_quota if business.plan else UNLIMITED
     used = usage_this_month(db, business.id)
-    unlimited = limit == UNLIMITED
+    # Platform operators bypass the plan cap entirely (stress-testing).
+    unlimited = limit == UNLIMITED or is_operator_business(db, business)
     return {
         "used": used,
         "limit": None if unlimited else limit,
@@ -77,6 +79,8 @@ def quota(db: Session, business: Business) -> dict:
 
 
 def _check_quota(db: Session, business: Business) -> None:
+    if is_operator_business(db, business):
+        return  # platform operator — unlimited renders for stress-testing
     limit = business.plan.image_monthly_quota if business.plan else UNLIMITED
     if limit != UNLIMITED and usage_this_month(db, business.id) >= limit:
         raise ImageQuotaExceeded(limit)
@@ -198,9 +202,10 @@ def generate_image_vision(
     is passed (the text already in the box), the rewrite builds on the owner's
     direction rather than starting from scratch. Billable text call, so it respects
     the monthly AI text quota."""
-    limit = business.plan.ai_monthly_quota if business.plan else UNLIMITED
-    if limit != UNLIMITED and ai_usage_this_month(db, business.id) >= limit:
-        raise AiQuotaExceeded(limit)
+    if not is_operator_business(db, business):
+        limit = business.plan.ai_monthly_quota if business.plan else UNLIMITED
+        if limit != UNLIMITED and ai_usage_this_month(db, business.id) >= limit:
+            raise AiQuotaExceeded(limit)
 
     lines = [f"Brand: {business.name}."]
     if business.industry:

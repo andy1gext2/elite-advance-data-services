@@ -19,6 +19,7 @@ from app.models.enums import UNLIMITED, Channel, ContentStatus, ContentType, Pla
 from app.models.schedule import Schedule
 from app.models.social_account import SocialAccount
 from app.services import scheduling_service
+from app.services.operator import is_operator_business
 from app.services.rag_service import approved_examples, build_business_context
 
 # Channels a real/mock account can publish to (subset of Channel).
@@ -79,6 +80,8 @@ def usage_this_month(db: Session, business_id: uuid.UUID) -> int:
 
 
 def _check_quota(db: Session, business: Business) -> None:
+    if is_operator_business(db, business):
+        return  # platform operator — unlimited generation for stress-testing
     limit = business.plan.ai_monthly_quota if business.plan else UNLIMITED
     if limit != UNLIMITED and usage_this_month(db, business.id) >= limit:
         raise AiQuotaExceeded(limit)

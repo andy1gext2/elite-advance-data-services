@@ -91,6 +91,34 @@ def test_video_quota_guard(client):
     assert q["used"] == 1 and q["remaining"] == 0
 
 
+def test_operator_business_bypasses_video_quota(client):
+    """A platform operator (owner email in PLATFORM_ADMIN_EMAILS) is never capped —
+    even with the plan tightened to 1 render — so they can freely stress-test."""
+    import uuid as u
+    from app.core.db import get_db
+    from app.models.business import Business
+
+    # andy1gext2@gmail.com is the default configured platform admin.
+    h, bid, item_id = _owner(client, email="andy1gext2@gmail.com")
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        biz = db.get(Business, u.UUID(bid))
+        biz.plan.video_monthly_quota = 1
+        db.commit()
+    finally:
+        db.close()
+
+    # Quota reports unlimited despite the plan cap of 1.
+    q = client.get(f"{API}/businesses/{bid}/content/video-quota", headers=h).json()
+    assert q["unlimited"] is True and q["limit"] is None
+
+    # Multiple renders all succeed — no 402.
+    V = f"{API}/businesses/{bid}/content/{item_id}/video"
+    for _ in range(3):
+        assert client.post(V, headers=h).status_code == 202
+
+
 def test_video_credits_overflow_past_monthly_quota(client):
     import uuid as u
     from app.core.db import get_db
