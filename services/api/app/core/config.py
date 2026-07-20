@@ -95,8 +95,11 @@ class Settings(BaseSettings):
     # the reset code also appears in the API response in non-production). Set
     # email_provider=smtp + the SMTP_* vars (e.g. Resend/SendGrid/SES/Gmail) to
     # actually deliver mail. email_from must be a verified sender on your provider.
+    # "resend" uses the Resend HTTPS API (port 443 — recommended on hosts like
+    # Railway that block outbound SMTP ports). "smtp" uses a raw SMTP relay.
     email_provider: str = "mock"
     email_from: str = "Elite Advance <no-reply@example.com>"
+    resend_api_key: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None
