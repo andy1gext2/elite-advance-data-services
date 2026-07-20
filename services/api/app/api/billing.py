@@ -4,6 +4,8 @@ billing being configured; without Stripe keys, checkout falls back to dev grants
 and the webhook 503s. Checkout/portal require admin+."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,6 +20,8 @@ from app.services import billing_service, video_service
 
 router = APIRouter(prefix="/businesses/{business_id}/billing", tags=["billing"])
 public = APIRouter(tags=["billing"])
+
+logger = logging.getLogger("app.billing")
 
 
 def _urls(business_id) -> tuple[str, str]:
@@ -51,6 +55,12 @@ def subscription_checkout(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001 — surface the Stripe error instead of a blank 500
+        logger.exception("Stripe subscription checkout failed")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Payment provider error: {exc}",
+        )
     return UrlOut(url=url)
 
 
@@ -62,7 +72,11 @@ def credits_checkout(
     s = get_settings()
     if billing_service.is_enabled() and s.stripe_credits_price_id:
         success, cancel = _urls(ctx.business.id)
-        return UrlOut(url=billing_service.credits_checkout(ctx.business, success_url=success, cancel_url=cancel))
+        try:
+            return UrlOut(url=billing_service.credits_checkout(ctx.business, success_url=success, cancel_url=cancel))
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Stripe credits checkout failed")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Payment provider error: {exc}")
     # Dev fallback (no Stripe): grant the pack directly so the flow is testable.
     video_service.add_credits(db, ctx.business, s.stripe_credits_per_pack)
     db.commit()
