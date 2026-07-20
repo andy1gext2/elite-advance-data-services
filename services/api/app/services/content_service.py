@@ -3,7 +3,7 @@ per-tenant AI quota enforcement. All operations are tenant-scoped by business.""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -203,6 +203,63 @@ def set_status(
     item.status = status.value
     db.flush()
     return item
+
+
+_UPLOAD_IMAGE_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
+_UPLOAD_VIDEO_EXT = {"video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm"}
+
+
+class UnsupportedUpload(Exception):
+    ...
+
+
+class NoConnectedAccounts(Exception):
+    ...
+
+
+def create_from_upload(
+    db: Session, *, storage, business: Business, data: bytes, content_type: str,
+    caption: str | None, created_by: uuid.UUID | None, schedule_in_days: int = 1,
+) -> list[ContentItem]:
+    """Post the owner's OWN media (photo or video), exactly as uploaded, to every
+    connected platform. One post per connected account, all scheduled the same time
+    (default: 1 day out). No AI generation and no campaign — it's a single asset, so
+    running a multi-post campaign off it would just repeat the same thing."""
+    ext = _UPLOAD_IMAGE_EXT.get(content_type) or _UPLOAD_VIDEO_EXT.get(content_type)
+    if ext is None:
+        raise UnsupportedUpload(content_type or "unknown")
+    is_video = content_type in _UPLOAD_VIDEO_EXT
+
+    accounts = scheduling_service.list_accounts(db, business_id=business.id)
+    if not accounts:
+        raise NoConnectedAccounts()
+
+    key = f"content/{business.id}/uploads/{uuid.uuid4().hex}.{ext}"
+    url = storage.save(key=key, data=data, content_type=content_type)
+    when = datetime.now(timezone.utc) + timedelta(days=schedule_in_days)
+    body = (caption or "").strip()
+
+    items: list[ContentItem] = []
+    for account in accounts:
+        item = ContentItem(
+            business_id=business.id,
+            channel=account.platform,
+            content_type=ContentType.SOCIAL_POST.value,
+            body=body,
+            image_url=None if is_video else url,
+            video_url=url if is_video else None,
+            status=ContentStatus.SCHEDULED.value,
+            created_by=created_by,
+            meta={"source": "upload"},
+        )
+        db.add(item)
+        db.flush()
+        scheduling_service.schedule_item(
+            db, business_id=business.id, content_item_id=item.id,
+            social_account_id=account.id, scheduled_at=when,
+        )
+        items.append(item)
+    return items
 
 
 def approve_item(db: Session, *, business_id: uuid.UUID, item_id: uuid.UUID) -> ContentItem:

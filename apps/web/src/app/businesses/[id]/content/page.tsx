@@ -16,6 +16,7 @@ import { PlatformLogo, PostPreview } from "@/components/PostPreview";
 import { PostEditModal } from "@/components/PostEditModal";
 import { VideoButton } from "@/components/VideoButton";
 import { CampaignStartCalendar } from "@/components/CampaignStartCalendar";
+import { UploadMediaCard } from "@/components/UploadMediaCard";
 import {
   Alert,
   Badge,
@@ -322,6 +323,8 @@ export default function ContentPage({
           </div>
         </form>
       </Card>
+
+      <UploadMediaCard businessId={id} onPosted={loadItems} />
 
       {/* Review queue header */}
       <div className="mt-8">

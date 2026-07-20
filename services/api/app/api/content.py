@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.ai.registry import get_ai_router
@@ -54,6 +54,38 @@ def generate(
     db.commit()
     db.refresh(item)
     return item
+
+
+_MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB (videos)
+
+
+@router.post("/upload", response_model=list[ContentItemOut], status_code=status.HTTP_201_CREATED)
+async def upload_media(
+    file: UploadFile = File(...),
+    caption: str | None = Form(default=None),
+    ctx: TenantContext = Depends(require_role(Role.EDITOR)),
+    storage: Storage = Depends(get_storage_dep),
+    db: Session = Depends(get_db),
+) -> list[ContentItemOut]:
+    """Post the owner's own photo/video, exactly as uploaded, to every connected
+    platform — one scheduled post each (default: 1 day out). Not a campaign."""
+    data = await file.read()
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large (max 100 MB)")
+    try:
+        items = content_service.create_from_upload(
+            db, storage=storage, business=ctx.business, data=data,
+            content_type=file.content_type or "", caption=caption,
+            created_by=ctx.membership.user_id,
+        )
+    except content_service.UnsupportedUpload:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a PNG, JPG, WEBP, GIF image or an MP4/MOV/WEBM video.")
+    except content_service.NoConnectedAccounts:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connect at least one social account (Schedule tab) before posting your own media.")
+    db.commit()
+    for item in items:
+        db.refresh(item)
+    return items
 
 
 @router.post("/repurpose", response_model=RepurposeOut, status_code=status.HTTP_201_CREATED)

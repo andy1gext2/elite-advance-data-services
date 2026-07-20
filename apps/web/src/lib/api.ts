@@ -281,6 +281,25 @@ export const api = {
       method: "DELETE",
     }),
 
+  uploadContentMedia: async (
+    businessId: string,
+    file: File,
+    caption?: string
+  ): Promise<ContentItem[]> => {
+    const form = new FormData();
+    form.append("file", file);
+    if (caption) form.append("caption", caption);
+    const res = await fetch(`/api/v1/businesses/${businessId}/content/upload`, {
+      method: "POST",
+      headers: tokenStore.access
+        ? { Authorization: `Bearer ${tokenStore.access}` }
+        : {},
+      body: form,
+    });
+    if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+    return (await res.json()) as ContentItem[];
+  },
+
   repurpose: (businessId: string, idea: string) =>
     request<RepurposeResult>(
       `/api/v1/businesses/${businessId}/content/repurpose`,
