@@ -371,6 +371,15 @@ def test_image_vision_and_custom_prompt(client):
     assert r.status_code == 200, r.text
     assert r.json()["prompt"]
 
+    # A rewrite that builds on the owner's current text (mock echoes the prompt,
+    # so the direction reaches the model).
+    r = client.post(
+        f"{API}/businesses/{bid}/content/{cid}/image/vision",
+        json={"current": "make it sunset golden hour on a rooftop"}, headers=h,
+    )
+    assert r.status_code == 200, r.text
+    assert "rooftop" in r.json()["prompt"].lower()
+
     # Generating with a custom prompt (edited vision) works and is honored.
     r = client.post(
         f"{API}/businesses/{bid}/content/{cid}/image",

@@ -190,11 +190,14 @@ def generate_asset_flyer(
 
 
 def generate_image_vision(
-    db: Session, *, router: AIRouter, business: Business, item: ContentItem
+    db: Session, *, router: AIRouter, business: Business, item: ContentItem,
+    current: str | None = None,
 ) -> str:
     """Claude drafts an editable image prompt ("image vision") the owner can tweak
-    before generating — the visual counterpart to the video vision. Billable text
-    call, so it respects the monthly AI text quota."""
+    before generating — the visual counterpart to the video vision. When `current`
+    is passed (the text already in the box), the rewrite builds on the owner's
+    direction rather than starting from scratch. Billable text call, so it respects
+    the monthly AI text quota."""
     limit = business.plan.ai_monthly_quota if business.plan else UNLIMITED
     if limit != UNLIMITED and ai_usage_this_month(db, business.id) >= limit:
         raise AiQuotaExceeded(limit)
@@ -213,7 +216,15 @@ def generate_image_vision(
             lines.append(f"Feature this product, true to life: {product.name or product.filename}.{note}")
 
     concept = "\n".join(p for p in (item.title, item.body) if p).strip()
-    prompt = "\n".join(lines) + f"\n\nMarketing post:\n{concept}\n\nWrite the image prompt."
+    prompt = "\n".join(lines) + f"\n\nMarketing post:\n{concept}\n\n"
+    if current and current.strip():
+        prompt += (
+            "The owner has written this direction for the image — keep their intent "
+            "and specific requests, and refine it into a polished prompt:\n"
+            f"{current.strip()}\n\nRewrite the image prompt."
+        )
+    else:
+        prompt += "Write the image prompt."
 
     resp = router.handle(AIRequest(
         task=TaskType.VIDEO_SCRIPT,  # raw provider call with our system prompt

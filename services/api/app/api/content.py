@@ -280,21 +280,30 @@ def generate_image(
     return item
 
 
+class ImageVisionIn(BaseModel):
+    current: str | None = None  # the text already in the box, to build on
+
+
 @router.post("/{item_id}/image/vision", response_model=VideoScriptOut)
 def write_image_vision(
     item_id: uuid.UUID,
+    body: ImageVisionIn | None = None,
     ctx: TenantContext = Depends(require_role(Role.EDITOR)),
     ai: AIRouter = Depends(get_ai_router),
     db: Session = Depends(get_db),
 ) -> VideoScriptOut:
     """Have Claude write an editable image prompt ("image vision") for this post,
-    so the owner can steer the visual before generating."""
+    so the owner can steer the visual before generating. If `current` is provided,
+    the rewrite builds on what the owner already typed."""
+    payload = body or ImageVisionIn()
     try:
         item = content_service.get_item(db, business_id=ctx.business.id, item_id=item_id)
     except content_service.ContentNotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
     try:
-        vision = image_service.generate_image_vision(db, router=ai, business=ctx.business, item=item)
+        vision = image_service.generate_image_vision(
+            db, router=ai, business=ctx.business, item=item, current=payload.current
+        )
     except content_service.AiQuotaExceeded as exc:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,

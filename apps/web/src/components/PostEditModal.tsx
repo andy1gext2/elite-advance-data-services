@@ -78,7 +78,11 @@ export function PostEditModal({
     setError("");
     setImageVisionLoading(true);
     try {
-      const { prompt } = await api.generateImageVision(businessId, post.id);
+      const { prompt } = await api.generateImageVision(
+        businessId,
+        post.id,
+        imageVision.trim() || undefined
+      );
       setImageVision(prompt);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not write the vision");

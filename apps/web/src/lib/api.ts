@@ -227,11 +227,12 @@ export const api = {
       { method: "POST", body: { asset_id: assetId ?? null, prompt: prompt ?? null } }
     ),
 
-  // Have Claude draft an editable image prompt ("image vision") for a post.
-  generateImageVision: (businessId: string, itemId: string) =>
+  // Have Claude draft an editable image prompt ("image vision"). Pass `current`
+  // (the text already in the box) so a rewrite builds on what the owner typed.
+  generateImageVision: (businessId: string, itemId: string, current?: string) =>
     request<{ prompt: string }>(
       `/api/v1/businesses/${businessId}/content/${itemId}/image/vision`,
-      { method: "POST" }
+      { method: "POST", body: { current: current ?? null } }
     ),
 
   // Have Claude write the 8-second vision for this post (preview/edit before rendering).
