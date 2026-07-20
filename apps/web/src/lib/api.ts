@@ -2,6 +2,7 @@
 // under /api/*, which next.config.mjs proxies to the backend (no CORS).
 
 import type {
+  AdminUsage,
   Asset,
   AutopilotConfig,
   BillingStatus,
@@ -139,6 +140,9 @@ export const api = {
     }),
 
   me: () => request<Me>("/api/v1/auth/me"),
+
+  // --- operator (admin-only) ---
+  adminUsage: () => request<AdminUsage>("/api/v1/admin/usage"),
 
   // --- businesses ---
   listBusinesses: () => request<Business[]>("/api/v1/businesses"),

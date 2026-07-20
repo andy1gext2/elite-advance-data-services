@@ -21,6 +21,36 @@ export interface Membership {
 export interface Me {
   user: User;
   memberships: Membership[];
+  is_platform_admin: boolean;
+}
+
+// Operator cost dashboard (GET /admin/usage) — cross-tenant, admin-only.
+export interface AdminUsageRow {
+  business_id: string;
+  name: string;
+  plan: string | null;
+  mrr_usd: number;
+  text_generations: number;
+  input_tokens: number;
+  output_tokens: number;
+  text_cost_usd: number;
+  images: number;
+  image_cost_usd: number;
+  videos: number;
+  video_cost_usd: number;
+  total_cost_usd: number;
+  margin_usd: number;
+}
+
+export interface AdminUsage {
+  period_start: string;
+  totals: {
+    businesses: number;
+    mrr_usd: number;
+    total_cost_usd: number;
+    margin_usd: number;
+  };
+  businesses: AdminUsageRow[];
 }
 
 export interface Business {

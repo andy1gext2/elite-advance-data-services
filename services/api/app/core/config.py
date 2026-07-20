@@ -91,6 +91,21 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
 
+    # Operator/admin. Comma-separated emails allowed to see the cross-tenant cost
+    # dashboard (GET /admin/usage). Defaults to the platform owner.
+    platform_admin_emails: str = "andy1gext2@gmail.com"
+
+    # Media cost estimates (USD) for the operator cost dashboard. Text (Claude) cost
+    # is computed exactly from stored token counts; image/video providers bill per
+    # asset, so these are tunable estimates (Gemini image ~ a few cents; a Veo clip
+    # is a few dollars). Adjust to your real provider pricing.
+    cost_per_image_usd: float = 0.04
+    cost_per_video_usd: float = 2.00
+
+    @property
+    def admin_emails(self) -> set[str]:
+        return {e.strip().lower() for e in self.platform_admin_emails.split(",") if e.strip()}
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}

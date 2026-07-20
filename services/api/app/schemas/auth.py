@@ -46,3 +46,5 @@ class MembershipOut(BaseModel):
 class MeOut(BaseModel):
     user: UserOut
     memberships: list[MembershipOut]
+    # True when this user is a platform operator (sees the cross-tenant cost view).
+    is_platform_admin: bool = False

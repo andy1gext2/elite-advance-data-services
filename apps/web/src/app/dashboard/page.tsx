@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import type { Business } from "@/lib/types";
 import { AppShell } from "@/components/AppShell";
 import { BusinessEditModal } from "@/components/BusinessEditModal";
@@ -11,6 +12,7 @@ import { Alert, Badge, Button, Card } from "@/components/ui";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { me } = useAuth();
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [editing, setEditing] = useState<Business | null>(null);
   const [deleting, setDeleting] = useState<Business | null>(null);
@@ -39,9 +41,19 @@ export default function DashboardPage() {
             Each business is a separate brand workspace.
           </p>
         </div>
-        <Button onClick={() => router.push("/onboarding")}>
-          + New business
-        </Button>
+        <div className="flex items-center gap-3">
+          {me?.is_platform_admin && (
+            <Link
+              href="/admin"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-fg hover:bg-bg"
+            >
+              Platform costs
+            </Link>
+          )}
+          <Button onClick={() => router.push("/onboarding")}>
+            + New business
+          </Button>
+        </div>
       </div>
 
       <div className="mt-6">

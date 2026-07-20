@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import (
     REFRESH,
@@ -73,4 +74,5 @@ def refresh(body: RefreshIn, db: Session = Depends(get_db)) -> TokenOut:
 
 @router.get("/me", response_model=MeOut)
 def me(user: User = Depends(get_current_user)) -> MeOut:
-    return MeOut(user=user, memberships=user.memberships)
+    is_admin = user.email.lower() in get_settings().admin_emails
+    return MeOut(user=user, memberships=user.memberships, is_platform_admin=is_admin)
