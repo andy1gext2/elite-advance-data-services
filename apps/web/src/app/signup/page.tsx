@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { Alert, Button, Field, Input } from "@/components/ui";
+import { Alert, Button, Field, Input, PasswordInput } from "@/components/ui";
 import { AuthLayout } from "@/components/AuthLayout";
 
 export default function SignupPage() {
@@ -58,8 +58,7 @@ export default function SignupPage() {
           />
         </Field>
         <Field label="Password" hint="At least 8 characters.">
-          <Input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
