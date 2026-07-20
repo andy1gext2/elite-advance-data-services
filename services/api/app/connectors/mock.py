@@ -108,6 +108,28 @@ class MockConnector(PlatformConnector):
             "follower_growth": n("fg", -20, 300),
         }
 
+    def fetch_timeseries(self, *, account_token: str, weeks: int = 8) -> list[dict]:
+        """Simulated weekly trend (oldest→newest). Social platforms only; local
+        listings (GBP) have no reach/mentions concept, so they return no series."""
+        if self.platform in _LOCAL_PLATFORMS:
+            return []
+
+        def w(salt: str, week_i: int, lo: int, hi: int) -> int:
+            h = int(hashlib.sha256(
+                f"{account_token}:{self.platform}:{salt}:{week_i}".encode()
+            ).hexdigest(), 16)
+            return lo + (h % (hi - lo))
+
+        return [
+            {
+                "reach": w("reach", i, 500, 6000),
+                "engagement": w("eng", i, 20, 400),
+                "clicks": w("clk", i, 5, 220),
+                "mentions": w("men", i, 0, 40),
+            }
+            for i in range(weeks)
+        ]
+
     def fetch_reviews(self, *, account_token: str) -> list[dict]:
         """Return a fixed sample set. Stable external_ids let the ingest layer
         dedupe on re-sync, mirroring how a real polling connector behaves."""

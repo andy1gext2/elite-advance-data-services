@@ -145,6 +145,69 @@ export function Donut({
   );
 }
 
+// Multi-line trend chart. One line per series, each its own color. Dependency-
+// free SVG; strokes stay uniform width via non-scaling-stroke while the viewBox
+// stretches to fill. Legend + axis labels carry identity (never color-alone).
+export function LineChart({
+  labels,
+  series,
+  height = 150,
+}: {
+  labels: string[];
+  series: { label: string; color: string; values: number[] }[];
+  height?: number;
+}) {
+  const max = Math.max(1, ...series.flatMap((s) => s.values));
+  const n = labels.length;
+  const W = 100;
+  const H = 100;
+  const x = (i: number) => (n <= 1 ? 0 : (i / (n - 1)) * W);
+  const y = (v: number) => H - (v / max) * H;
+
+  if (series.length === 0)
+    return <p className="text-sm text-muted">No trend data yet.</p>;
+
+  return (
+    <div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        style={{ height }}
+        className="w-full overflow-visible"
+      >
+        {/* baseline + mid gridline */}
+        <line x1="0" y1={H} x2={W} y2={H} className="stroke-border" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1={H / 2} x2={W} y2={H / 2} className="stroke-border" strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" opacity={0.5} />
+        {series.map((s) => (
+          <polyline
+            key={s.label}
+            fill="none"
+            stroke={s.color}
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+            points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")}
+          />
+        ))}
+      </svg>
+      <div className="mt-1 flex justify-between border-t border-border pt-1 text-[10px] text-muted">
+        <span>{labels[0]}</span>
+        <span>peak {max.toLocaleString("en-US")}</span>
+        <span>{labels[n - 1]}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        {series.map((s) => (
+          <span key={s.label} className="flex items-center gap-1.5 text-xs text-muted">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SentimentBar({ s }: { s: Record<string, number> }) {
   const pos = s.positive || 0;
   const neu = s.neutral || 0;

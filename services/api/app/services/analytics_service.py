@@ -166,18 +166,41 @@ def platform_analytics(db: Session, *, business: Business) -> dict:
     social = Counter()   # impressions, reach, engagements, likes/comments/shares/saves, link_clicks, profile_visits, followers, follower_growth
     local = Counter()    # views_search, views_maps, searches, website_clicks, direction_requests, calls, photo_views
     per_platform: list[dict] = []
+    series_platforms: list[dict] = []  # weekly trend, one entry per social account
     simulated = False
+
+    weeks = 8
+    week_labels = [
+        (date.today() - timedelta(days=7 * i)).strftime("%m/%d")
+        for i in range(weeks - 1, -1, -1)
+    ]
 
     for acct in accounts:
         connector = get_connector(acct.platform)
+        token = acct.external_id or str(acct.id)
         if not connector.live:
             simulated = True
         try:
-            m = connector.fetch_metrics(account_token=(acct.external_id or str(acct.id)))
+            m = connector.fetch_metrics(account_token=token)
         except (ConnectorError, NotImplementedError):
             continue  # connector can't fetch yet (pending approval) — skip
 
         kind = m.get("kind")
+        if kind == "social":
+            try:
+                pts = connector.fetch_timeseries(account_token=token, weeks=weeks)
+            except (ConnectorError, NotImplementedError):
+                pts = []
+            if pts:
+                series_platforms.append({
+                    "platform": acct.platform,
+                    "display_name": acct.display_name,
+                    "reach": [p.get("reach", 0) for p in pts],
+                    "engagement": [p.get("engagement", 0) for p in pts],
+                    "clicks": [p.get("clicks", 0) for p in pts],
+                    "mentions": [p.get("mentions", 0) for p in pts],
+                })
+
         if kind == "local":
             for key in ("views_search", "views_maps", "searches", "website_clicks",
                         "direction_requests", "calls", "photo_views"):
@@ -222,6 +245,11 @@ def platform_analytics(db: Session, *, business: Business) -> dict:
             "actions": local["website_clicks"] + local["direction_requests"] + local["calls"],
         },
         "per_platform": per_platform,
+        "series": {
+            "weeks": week_labels,
+            "metrics": ["reach", "engagement", "clicks", "mentions"],
+            "platforms": series_platforms,
+        },
     }
 
 

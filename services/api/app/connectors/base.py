@@ -50,6 +50,11 @@ class PlatformConnector(ABC):
     def fetch_metrics(self, *, account_token: str) -> dict:
         raise NotSupported(f"{self.platform}: fetch_metrics not implemented")
 
+    def fetch_timeseries(self, *, account_token: str, weeks: int = 8) -> list[dict]:
+        """Weekly metric history (oldest→newest), one dict per week with keys
+        reach / engagement / clicks / mentions. Powers the trend graph."""
+        raise NotSupported(f"{self.platform}: fetch_timeseries not implemented")
+
     # OAuth handshake — real connectors implement these; see docs/integrations.md.
     def authorize_url(self, *, redirect_uri: str, state: str) -> str:
         raise NotSupported(f"{self.platform}: OAuth not implemented")

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   CHANNEL_COLORS,
@@ -7,6 +8,15 @@ import {
   type PlatformAnalytics,
 } from "@/lib/types";
 import { Card } from "@/components/ui";
+import { LineChart } from "@/components/charts";
+
+type Metric = "reach" | "engagement" | "clicks" | "mentions";
+const METRIC_LABELS: Record<Metric, string> = {
+  reach: "Reach",
+  engagement: "Engagement",
+  clicks: "Clicks",
+  mentions: "Mentions",
+};
 
 const n = (v: number | undefined) => (v ?? 0).toLocaleString("en-US");
 
@@ -33,6 +43,13 @@ export function PlatformPerformance({
   const l = data.local;
   const hasSocial = (s.impressions ?? 0) > 0;
   const hasLocal = (l.views ?? 0) > 0 || (l.actions ?? 0) > 0;
+
+  const [metric, setMetric] = useState<Metric>("reach");
+  const chartSeries = data.series.platforms.map((p) => ({
+    label: CHANNEL_LABELS[p.platform] ?? p.platform,
+    color: CHANNEL_COLORS[p.platform] ?? CHANNEL_COLORS.generic,
+    values: p[metric],
+  }));
 
   return (
     <Card>
@@ -84,33 +101,28 @@ export function PlatformPerformance({
             </div>
           )}
 
-          {/* Per-platform breakdown, brand-colored. */}
-          <div className="space-y-2">
-            {data.per_platform.map((p) => (
-              <div
-                key={p.platform + p.display_name}
-                className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm"
-              >
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                  style={{ background: CHANNEL_COLORS[p.platform] ?? CHANNEL_COLORS.generic }}
-                />
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {CHANNEL_LABELS[p.platform] ?? p.platform}
-                  <span className="ml-1 text-xs font-normal text-muted">{p.display_name}</span>
-                </span>
-                {p.kind === "social" ? (
-                  <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {n(p.reach)} reach · {p.engagement_rate ?? 0}% eng · {p.ctr ?? 0}% CTR
-                  </span>
-                ) : (
-                  <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {n(p.views)} views · {n(p.actions)} actions
-                  </span>
-                )}
+          {/* Trend graph — one brand-colored line per platform; pick the metric. */}
+          {chartSeries.length > 0 && (
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                  {METRIC_LABELS[metric]} by platform · last 8 weeks
+                </p>
+                <select
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value as Metric)}
+                  className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-sm text-fg outline-none focus:border-brand"
+                >
+                  {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
+                    <option key={m} value={m}>
+                      {METRIC_LABELS[m]}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ))}
-          </div>
+              <LineChart labels={data.series.weeks} series={chartSeries} />
+            </div>
+          )}
         </div>
       )}
     </Card>

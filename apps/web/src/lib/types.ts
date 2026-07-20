@@ -235,6 +235,18 @@ export interface PlatformAnalytics {
     views?: number;
     actions?: number;
   }[];
+  series: {
+    weeks: string[];
+    metrics: string[];
+    platforms: {
+      platform: string;
+      display_name: string;
+      reach: number[];
+      engagement: number[];
+      clicks: number[];
+      mentions: number[];
+    }[];
+  };
 }
 
 export interface Dashboard {

@@ -107,3 +107,20 @@ def test_platform_analytics_with_connected_accounts(client):
     # Local (Google Business) actions present.
     assert d["local"]["actions"] > 0
     assert len(d["per_platform"]) == 2
+
+
+def test_platform_analytics_trend_series(client):
+    h, bid = _owner(client, email="plat-series@example.com")
+    client.post(
+        f"{API}/businesses/{bid}/integrations/accounts",
+        json={"platform": "instagram", "display_name": "@acme"}, headers=h,
+    )
+    d = client.get(f"{API}/businesses/{bid}/analytics/platform", headers=h).json()
+    series = d["series"]
+    assert len(series["weeks"]) == 8
+    assert series["metrics"] == ["reach", "engagement", "clicks", "mentions"]
+    ig = series["platforms"][0]
+    assert ig["platform"] == "instagram"
+    # One value per week for each metric.
+    for m in ("reach", "engagement", "clicks", "mentions"):
+        assert len(ig[m]) == 8
