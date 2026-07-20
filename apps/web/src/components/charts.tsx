@@ -74,9 +74,13 @@ export function HBars({ data }: { data: { label: string; value: number }[] }) {
 export function Donut({
   data,
   size = 128,
+  onSelect,
 }: {
-  data: { label: string; value: number; color?: string }[];
+  data: { label: string; value: number; color?: string; key?: string }[];
   size?: number;
+  // Clicking a slice/legend item drills into that channel (dashboard opens a
+  // per-platform detail view). Receives the clicked item's `key` (channel id).
+  onSelect?: (key: string) => void;
 }) {
   const items = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const total = items.reduce((sum, d) => sum + d.value, 0);
@@ -129,7 +133,8 @@ export function Donut({
               strokeOpacity={opacity}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
-              style={{ transition: "stroke-width 150ms, stroke-opacity 150ms", cursor: "pointer" }}
+              onClick={() => onSelect?.(items[i].key ?? items[i].label)}
+              style={{ transition: "stroke-width 150ms, stroke-opacity 150ms", cursor: onSelect ? "pointer" : "default" }}
             />
           );
         })}
@@ -150,8 +155,10 @@ export function Donut({
             type="button"
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
+            onClick={() => onSelect?.(d.key ?? d.label)}
             className={
               "flex items-center gap-1.5 text-xs transition-colors " +
+              (onSelect ? "cursor-pointer hover:text-fg " : "") +
               (hover === i ? "font-medium text-fg" : "text-muted")
             }
           >

@@ -16,6 +16,7 @@ import {
 import { Alert, Button, Card, PageHeader } from "@/components/ui";
 import { Donut, SentimentBar, WeeklyBars } from "@/components/charts";
 import { PlatformPerformance } from "@/components/PlatformPerformance";
+import { PlatformDetailModal } from "@/components/PlatformDetailModal";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -96,6 +97,8 @@ export default function BusinessDashboardPage({
   const [insights, setInsights] = useState<Insights | null>(null);
   const [error, setError] = useState("");
   const [thinking, setThinking] = useState(false);
+  // Channel drilled into from the wheel → opens the per-platform detail view.
+  const [drillChannel, setDrillChannel] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     // Dashboard is required; the feed/strip sources are best-effort.
@@ -133,6 +136,7 @@ export default function BusinessDashboardPage({
   const channelData = data
     ? Object.entries(data.content_by_channel)
         .map(([channel, value]) => ({
+          key: channel,
           label: CHANNEL_LABELS[channel] ?? channel,
           value,
           color: CHANNEL_COLORS[channel] ?? CHANNEL_COLORS.generic,
@@ -240,8 +244,11 @@ export default function BusinessDashboardPage({
             <Card className={platform ? "lg:col-span-1" : "lg:col-span-1 lg:col-start-4"}>
               <SectionTitle>Content by channel</SectionTitle>
               <div className="flex justify-center py-1">
-                <Donut data={channelData} size={116} />
+                <Donut data={channelData} size={116} onSelect={setDrillChannel} />
               </div>
+              <p className="mt-2 text-center text-[11px] text-muted">
+                Click a channel for its analytics
+              </p>
             </Card>
           </div>
 
@@ -340,6 +347,17 @@ export default function BusinessDashboardPage({
               </ul>
             )}
           </Card>
+
+          {/* Per-platform drill-down opened from the channel wheel. */}
+          {drillChannel && (
+            <PlatformDetailModal
+              businessId={id}
+              channel={drillChannel}
+              postCount={data.content_by_channel[drillChannel] ?? 0}
+              analytics={platform}
+              onClose={() => setDrillChannel(null)}
+            />
+          )}
         </>
       )}
     </>
