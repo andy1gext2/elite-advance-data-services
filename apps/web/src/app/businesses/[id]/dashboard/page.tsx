@@ -230,12 +230,6 @@ export default function BusinessDashboardPage({
             />
           </div>
 
-          {platform && (
-            <div className="mt-4">
-              <PlatformPerformance businessId={id} data={platform} />
-            </div>
-          )}
-
           {/* Command-center grid: performance (wide) + the compact channel wheel
               top-right; activity feed + sentiment on the second row. */}
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -280,6 +274,12 @@ export default function BusinessDashboardPage({
               <SentimentBar s={data.sentiment} />
             </Card>
           </div>
+
+          {platform && (
+            <div className="mt-4">
+              <PlatformPerformance businessId={id} data={platform} />
+            </div>
+          )}
 
           {/* Upcoming posts strip */}
           <Card className="mt-4">
