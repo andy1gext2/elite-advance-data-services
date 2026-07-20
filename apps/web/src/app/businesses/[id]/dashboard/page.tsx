@@ -10,10 +10,12 @@ import {
   type ContentItem,
   type Dashboard,
   type Insights,
+  type PlatformAnalytics,
   type Review,
 } from "@/lib/types";
 import { Alert, Button, Card, PageHeader } from "@/components/ui";
 import { Donut, SentimentBar, WeeklyBars } from "@/components/charts";
+import { PlatformPerformance } from "@/components/PlatformPerformance";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -90,22 +92,25 @@ export default function BusinessDashboardPage({
   const [calendar, setCalendar] = useState<CampaignCalendarItem[]>([]);
   const [content, setContent] = useState<ContentItem[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [platform, setPlatform] = useState<PlatformAnalytics | null>(null);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [error, setError] = useState("");
   const [thinking, setThinking] = useState(false);
 
   const load = useCallback(async () => {
     // Dashboard is required; the feed/strip sources are best-effort.
-    const [dash, cal, items, revs] = await Promise.all([
+    const [dash, cal, items, revs, plat] = await Promise.all([
       api.dashboard(id),
       api.campaignCalendar(id).catch(() => [] as CampaignCalendarItem[]),
       api.listContent(id).catch(() => [] as ContentItem[]),
       api.listReviews(id).catch(() => [] as Review[]),
+      api.platformAnalytics(id).catch(() => null),
     ]);
     setData(dash);
     setCalendar(cal);
     setContent(items);
     setReviews(revs);
+    setPlatform(plat);
   }, [id]);
 
   useEffect(() => {
@@ -224,6 +229,12 @@ export default function BusinessDashboardPage({
               sub={<span className="text-muted">{Math.round(k.response_rate * 100)}% response rate</span>}
             />
           </div>
+
+          {platform && (
+            <div className="mt-4">
+              <PlatformPerformance businessId={id} data={platform} />
+            </div>
+          )}
 
           {/* Main command-center grid: perf chart + channel + sentiment on the
               left, a tall activity rail on the right. */}

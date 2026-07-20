@@ -214,6 +214,29 @@ export interface WeekPoint {
   count: number;
 }
 
+// Per-platform engagement metrics (mock/simulated until live connectors).
+export interface PlatformAnalytics {
+  has_accounts: boolean;
+  simulated: boolean;
+  social: Record<string, number>;
+  local: Record<string, number>;
+  per_platform: {
+    platform: string;
+    display_name: string;
+    kind: "social" | "local";
+    impressions?: number;
+    reach?: number;
+    engagements?: number;
+    engagement_rate?: number;
+    link_clicks?: number;
+    ctr?: number;
+    followers?: number;
+    follower_growth?: number;
+    views?: number;
+    actions?: number;
+  }[];
+}
+
 export interface Dashboard {
   kpis: {
     total_content: number;

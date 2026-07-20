@@ -25,6 +25,16 @@ def dashboard(
     return DashboardOut(**analytics_service.dashboard(db, business_id=ctx.business.id))
 
 
+@router.get("/analytics/platform")
+def platform_analytics(
+    ctx: TenantContext = Depends(get_membership_ctx),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Per-platform engagement metrics from connected accounts (reach, impressions,
+    engagement rate, CTR, Google Business actions). Simulated until live connectors."""
+    return analytics_service.platform_analytics(db, business=ctx.business)
+
+
 @router.post("/insights/generate", response_model=InsightsOut)
 def generate_insights(
     ctx: TenantContext = Depends(require_role(Role.EDITOR)),

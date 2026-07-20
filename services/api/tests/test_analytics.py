@@ -79,3 +79,31 @@ def test_dashboard_rbac_and_isolation(client):
     # A different tenant can't see this dashboard.
     other_h, _ = _owner(client, email="anaother@example.com")
     assert client.get(f"{API}/businesses/{bid}/analytics/dashboard", headers=other_h).status_code == 404
+
+
+def test_platform_analytics_no_accounts(client):
+    h, bid = _owner(client, email="plat-none@example.com")
+    r = client.get(f"{API}/businesses/{bid}/analytics/platform", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["has_accounts"] is False
+
+
+def test_platform_analytics_with_connected_accounts(client):
+    h, bid = _owner(client, email="plat@example.com")
+    # Connect a social + a local (GBP) account (dev mock connectors).
+    for platform in ("instagram", "google_business"):
+        client.post(
+            f"{API}/businesses/{bid}/integrations/accounts",
+            json={"platform": platform, "display_name": f"@acme-{platform}"}, headers=h,
+        )
+    r = client.get(f"{API}/businesses/{bid}/analytics/platform", headers=h)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["has_accounts"] is True
+    assert d["simulated"] is True  # mock connectors
+    # Social metrics from Instagram.
+    assert d["social"]["impressions"] > 0
+    assert "engagement_rate" in d["social"] and "ctr" in d["social"]
+    # Local (Google Business) actions present.
+    assert d["local"]["actions"] > 0
+    assert len(d["per_platform"]) == 2

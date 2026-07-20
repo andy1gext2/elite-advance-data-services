@@ -22,7 +22,9 @@ from app.models.content import ContentItem
 from app.models.enums import UNLIMITED, ContentStatus, ScheduleStatus
 from app.models.review import Review
 from app.models.schedule import Schedule
-from app.services import reputation_service
+from app.connectors.base import ConnectorError
+from app.connectors.registry import get_connector
+from app.services import reputation_service, scheduling_service
 from app.services.content_service import AiQuotaExceeded, usage_this_month
 from app.services.rag_service import build_business_context
 
@@ -146,6 +148,80 @@ def dashboard(db: Session, *, business_id: uuid.UUID) -> dict:
             content_this_week=content_this_week,
             unanswered=unanswered,
         ),
+    }
+
+
+def _pct(part: int, whole: int) -> float:
+    return round(part / whole * 100, 1) if whole else 0.0
+
+
+def platform_analytics(db: Session, *, business: Business) -> dict:
+    """Per-platform engagement metrics (reach, impressions, engagement rate, CTR,
+    profile visits, and Google Business actions) pulled from each connected account
+    via its connector. The mock connector returns clearly-labeled *simulated* data
+    (`simulated: true`); once live Meta/GBP connectors are approved they return the
+    same shape from the real Insights / Performance APIs — plug and play."""
+    accounts = scheduling_service.list_accounts(db, business_id=business.id)
+
+    social = Counter()   # impressions, reach, engagements, likes/comments/shares/saves, link_clicks, profile_visits, followers, follower_growth
+    local = Counter()    # views_search, views_maps, searches, website_clicks, direction_requests, calls, photo_views
+    per_platform: list[dict] = []
+    simulated = False
+
+    for acct in accounts:
+        connector = get_connector(acct.platform)
+        if not connector.live:
+            simulated = True
+        try:
+            m = connector.fetch_metrics(account_token=(acct.external_id or str(acct.id)))
+        except (ConnectorError, NotImplementedError):
+            continue  # connector can't fetch yet (pending approval) — skip
+
+        kind = m.get("kind")
+        if kind == "local":
+            for key in ("views_search", "views_maps", "searches", "website_clicks",
+                        "direction_requests", "calls", "photo_views"):
+                local[key] += m.get(key, 0)
+            per_platform.append({
+                "platform": acct.platform,
+                "display_name": acct.display_name,
+                "kind": "local",
+                "views": m.get("views_search", 0) + m.get("views_maps", 0),
+                "actions": m.get("website_clicks", 0) + m.get("direction_requests", 0) + m.get("calls", 0),
+            })
+        elif kind == "social":
+            for key in ("impressions", "reach", "engagements", "likes", "comments",
+                        "shares", "saves", "link_clicks", "profile_visits",
+                        "followers", "follower_growth"):
+                social[key] += m.get(key, 0)
+            per_platform.append({
+                "platform": acct.platform,
+                "display_name": acct.display_name,
+                "kind": "social",
+                "impressions": m.get("impressions", 0),
+                "reach": m.get("reach", 0),
+                "engagements": m.get("engagements", 0),
+                "engagement_rate": _pct(m.get("engagements", 0), m.get("impressions", 0)),
+                "link_clicks": m.get("link_clicks", 0),
+                "ctr": _pct(m.get("link_clicks", 0), m.get("impressions", 0)),
+                "followers": m.get("followers", 0),
+                "follower_growth": m.get("follower_growth", 0),
+            })
+
+    return {
+        "has_accounts": bool(accounts),
+        "simulated": simulated,
+        "social": {
+            **dict(social),
+            "engagement_rate": _pct(social["engagements"], social["impressions"]),
+            "ctr": _pct(social["link_clicks"], social["impressions"]),
+        },
+        "local": {
+            **dict(local),
+            "views": local["views_search"] + local["views_maps"],
+            "actions": local["website_clicks"] + local["direction_requests"] + local["calls"],
+        },
+        "per_platform": per_platform,
     }
 
 

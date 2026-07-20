@@ -3,11 +3,14 @@ API or approval. Every real connector will implement the same interface, so the
 scheduling/publish engine is unchanged when live connectors land."""
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from app.connectors.base import PlatformConnector, PublishResult
+
+_LOCAL_PLATFORMS = {"google_business"}
 
 # Deterministic sample reviews (stable external_ids so re-sync dedupes cleanly).
 # (external_id, author, rating, body, days_ago) — spans sentiment + recency.
@@ -64,6 +67,45 @@ class MockConnector(PlatformConnector):
             "access_token": f"mock-oauth-token-{uuid.uuid4().hex}",
             "refresh_token": refresh_token,
             "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+        }
+
+    def fetch_metrics(self, *, account_token: str) -> dict:
+        """Simulated platform insights (the same shape a real Meta/GBP connector
+        would return). Deterministic per account so the numbers are stable across
+        refreshes. `kind` tells the aggregator whether these are social-media or
+        local-listing (Google Business) metrics."""
+        def n(salt: str, lo: int, hi: int) -> int:
+            h = int(hashlib.sha256(f"{account_token}:{self.platform}:{salt}".encode()).hexdigest(), 16)
+            return lo + (h % (hi - lo))
+
+        if self.platform in _LOCAL_PLATFORMS:
+            return {
+                "kind": "local",
+                "views_search": n("vs", 400, 4000),
+                "views_maps": n("vm", 300, 3500),
+                "searches": n("srch", 200, 2500),
+                "website_clicks": n("wc", 20, 400),
+                "direction_requests": n("dir", 10, 300),
+                "calls": n("call", 5, 150),
+                "photo_views": n("pv", 100, 2000),
+            }
+
+        impressions = n("imp", 1500, 20000)
+        reach = int(impressions * (0.5 + n("r", 0, 30) / 100))  # 50–80% of impressions
+        likes, comments, shares, saves = n("lk", 20, 800), n("cm", 2, 120), n("sh", 1, 90), n("sv", 1, 150)
+        return {
+            "kind": "social",
+            "impressions": impressions,
+            "reach": reach,
+            "likes": likes,
+            "comments": comments,
+            "shares": shares,
+            "saves": saves,
+            "engagements": likes + comments + shares + saves,
+            "link_clicks": n("lc", 10, 600),
+            "profile_visits": n("pf", 30, 900),
+            "followers": n("fol", 200, 15000),
+            "follower_growth": n("fg", -20, 300),
         }
 
     def fetch_reviews(self, *, account_token: str) -> list[dict]:

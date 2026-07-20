@@ -15,6 +15,7 @@ import type {
   Insights,
   Me,
   Plan,
+  PlatformAnalytics,
   ReputationReport,
   RepurposeResult,
   Review,
@@ -476,6 +477,9 @@ export const api = {
   // --- analytics & insights ---
   dashboard: (businessId: string) =>
     request<Dashboard>(`/api/v1/businesses/${businessId}/analytics/dashboard`),
+
+  platformAnalytics: (businessId: string) =>
+    request<PlatformAnalytics>(`/api/v1/businesses/${businessId}/analytics/platform`),
 
   generateInsights: (businessId: string) =>
     request<Insights>(`/api/v1/businesses/${businessId}/insights/generate`, {
