@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { VideoQuota } from "@/lib/types";
 import { Button } from "@/components/ui";
+import { ProgressBar, useEstimatedProgress } from "@/components/Progress";
 
 // Kicks off an async video render, then polls until it's ready. Guards cost with a
 // confirmation dialog that shows the tenant's remaining monthly video allowance —
@@ -26,6 +27,7 @@ export function VideoButton({
   script?: string;
 }) {
   const [rendering, setRendering] = useState(false);
+  const videoPct = useEstimatedProgress(rendering, 75000); // Veo ≈ 60–90s
   const [confirming, setConfirming] = useState(false);
   const [quota, setQuota] = useState<VideoQuota | null>(null);
   const [buying, setBuying] = useState(false);
@@ -138,6 +140,11 @@ export function VideoButton({
       >
         {rendering ? "Rendering…" : hasVideo ? "🎬 Regenerate video" : "🎬 Generate video"}
       </Button>
+      {rendering && (
+        <div className="mt-2">
+          <ProgressBar percent={videoPct} label="Rendering video…" />
+        </div>
+      )}
 
       {confirming && (
         <div

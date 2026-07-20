@@ -6,6 +6,7 @@ import { CHANNEL_LABELS, type Asset, type ContentItem } from "@/lib/types";
 import { PostPreview } from "@/components/PostPreview";
 import { VideoButton } from "@/components/VideoButton";
 import { Button, Field, Input, Textarea } from "@/components/ui";
+import { ProgressBar, useEstimatedProgress } from "@/components/Progress";
 
 // The single post editor reused across Content, Campaigns, and Calendar. Edits a
 // content item's copy (title/body) and its image (regenerate, optionally grounded
@@ -45,6 +46,7 @@ export function PostEditModal({
   const [productId, setProductId] = useState(defaultProductId);
   const [saving, setSaving] = useState(false);
   const [imaging, setImaging] = useState(false);
+  const imagePct = useEstimatedProgress(imaging, 9000); // ~9s per image
   const [error, setError] = useState("");
   // The 8-second video vision Claude writes for Veo — visible + editable here so
   // the owner can steer the render (or leave blank to let Claude write it).
@@ -171,6 +173,7 @@ export function PostEditModal({
                 <Button variant="ghost" onClick={regenerate} loading={imaging}>
                   {imageUrl ? "🖼 Regenerate" : "🖼 Generate image"}
                 </Button>
+                {imaging && <ProgressBar percent={imagePct} label="Generating image…" />}
                 <VideoButton
                   businessId={businessId}
                   itemId={post.id}

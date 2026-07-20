@@ -17,6 +17,7 @@ import { PostEditModal } from "@/components/PostEditModal";
 import { VideoButton } from "@/components/VideoButton";
 import { CampaignStartCalendar } from "@/components/CampaignStartCalendar";
 import { UploadMediaCard } from "@/components/UploadMediaCard";
+import { ProgressBar, useEstimatedProgress } from "@/components/Progress";
 import {
   Alert,
   Badge,
@@ -98,6 +99,12 @@ export default function ContentPage({
   const [startDate, setStartDate] = useState(todayISO());
   const [calOpen, setCalOpen] = useState(false);
   const [notice, setNotice] = useState("");
+
+  // Rough per-timeframe estimate: a month drafts ~30 posts, a week ~15, a day ~5.
+  const campaignPct = useEstimatedProgress(
+    busy,
+    duration === "day" ? 12000 : duration === "week" ? 35000 : 70000
+  );
 
   const campaignSpan = duration === "day" ? 1 : duration === "week" ? 7 : 30;
   const rangeLabel =
@@ -316,6 +323,7 @@ export default function ContentPage({
             </p>
           )}
           <Alert>{error}</Alert>
+          {busy && <ProgressBar percent={campaignPct} label="Drafting your campaign…" />}
           <div className="flex justify-end">
             <Button type="submit" loading={busy} disabled={!brief.trim()}>
               {busy ? "Drafting campaign…" : "Generate campaign"}
