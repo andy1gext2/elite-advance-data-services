@@ -236,8 +236,8 @@ export default function BusinessDashboardPage({
             </div>
           )}
 
-          {/* Main command-center grid: perf chart + channel + sentiment on the
-              left, a tall activity rail on the right. */}
+          {/* Command-center grid: performance (wide) + the compact channel wheel
+              top-right; activity feed + sentiment on the second row. */}
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <SectionTitle action={<span className="text-xs text-muted">Last 8 weeks</span>}>
@@ -246,15 +246,22 @@ export default function BusinessDashboardPage({
               <WeeklyBars data={data.timeseries.content_per_week} />
             </Card>
 
-            {/* Activity feed rail — spans both rows on the right. */}
-            <Card className="lg:row-span-2">
+            {/* Compact, interactive channel wheel — top-right. */}
+            <Card>
+              <SectionTitle>Content by channel</SectionTitle>
+              <div className="flex justify-center py-1">
+                <Donut data={channelData} size={116} />
+              </div>
+            </Card>
+
+            <Card className="lg:col-span-2">
               <SectionTitle>Activity feed</SectionTitle>
               {feed.length === 0 ? (
                 <p className="text-sm text-muted">
                   Nothing yet — draft a campaign and it&apos;ll show up here.
                 </p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="grid gap-3 sm:grid-cols-2">
                   {feed.map((a) => (
                     <li key={a.key} className="flex gap-2.5 text-sm">
                       <span className="shrink-0 leading-5">{a.icon}</span>
@@ -266,11 +273,6 @@ export default function BusinessDashboardPage({
                   ))}
                 </ul>
               )}
-            </Card>
-
-            <Card>
-              <SectionTitle>Content by channel</SectionTitle>
-              <Donut data={channelData} />
             </Card>
 
             <Card>

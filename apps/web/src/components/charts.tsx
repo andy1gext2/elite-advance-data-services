@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 // Lightweight, dependency-free charts built from the design-system tokens.
 // Each chart is a single measure → single brand hue, so no legend is needed
 // (the heading names the series). Marks are thin, rounded at the data end, sit on
@@ -71,11 +73,14 @@ export function HBars({ data }: { data: { label: string; value: number }[] }) {
 // The legend carries each label + count + %, so identity is never color-alone.
 export function Donut({
   data,
+  size = 128,
 }: {
   data: { label: string; value: number; color?: string }[];
+  size?: number;
 }) {
   const items = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const total = items.reduce((sum, d) => sum + d.value, 0);
+  const [hover, setHover] = useState<number | null>(null);
   if (total === 0) return <p className="text-sm text-muted">No data yet.</p>;
 
   const r = 42;
@@ -85,62 +90,61 @@ export function Donut({
   const arcs = items.map((d, i) => {
     const frac = d.value / total;
     const len = Math.max(frac * C - gap, 0);
-    // Per-channel brand color when provided; otherwise fade one brand hue by rank.
-    const opacity = d.color ? 1 : Math.max(1 - i * 0.16, 0.4);
-    const arc = { len, dash: `${len} ${C - len}`, offset: -offset, opacity, color: d.color };
+    const base = d.color ? 1 : Math.max(1 - i * 0.16, 0.4);
+    const arc = { len, dash: `${len} ${C - len}`, offset: -offset, base, color: d.color };
     offset += frac * C;
     return arc;
   });
 
+  const active = hover != null ? items[hover] : null;
+  const activePct = active ? Math.round((active.value / total) * 100) : 0;
+
   return (
-    <div className="flex items-center gap-5">
-      <svg viewBox="0 0 100 100" className="h-32 w-32 -rotate-90 shrink-0">
-        <circle cx="50" cy="50" r={r} fill="none" className="stroke-border" strokeWidth="15" />
-        {arcs.map((a, i) => (
-          <circle
-            key={i}
-            cx="50"
-            cy="50"
-            r={r}
-            fill="none"
-            className={a.color ? undefined : "stroke-brand"}
-            stroke={a.color}
-            strokeWidth="15"
-            strokeDasharray={a.dash}
-            strokeDashoffset={a.offset}
-            strokeOpacity={a.opacity}
-          />
-        ))}
-        <text
-          x="50"
-          y="50"
-          transform="rotate(90 50 50)"
-          textAnchor="middle"
-          dominantBaseline="central"
-          className="fill-fg text-[15px] font-semibold"
-        >
-          {total}
+    <div className="flex flex-col items-center">
+      <svg
+        viewBox="0 0 100 100"
+        style={{ height: size, width: size }}
+        className="-rotate-90"
+      >
+        <circle cx="50" cy="50" r={r} fill="none" className="stroke-border" strokeWidth="14" />
+        {arcs.map((a, i) => {
+          // Hover: raise the active slice (thicker) and dim the rest.
+          const opacity = hover == null ? a.base : hover === i ? 1 : 0.15;
+          const width = hover === i ? 20 : 14;
+          return (
+            <circle
+              key={i}
+              cx="50"
+              cy="50"
+              r={r}
+              fill="none"
+              className={a.color ? undefined : "stroke-brand"}
+              stroke={a.color}
+              strokeWidth={width}
+              strokeDasharray={a.dash}
+              strokeDashoffset={a.offset}
+              strokeOpacity={opacity}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              style={{ transition: "stroke-width 150ms, stroke-opacity 150ms", cursor: "pointer" }}
+            />
+          );
+        })}
+        {/* Center: total by default; the hovered channel's count + share on hover. */}
+        <text x="50" y="46" transform="rotate(90 50 50)" textAnchor="middle" dominantBaseline="central" className="fill-fg text-[16px] font-semibold">
+          {active ? active.value : total}
+        </text>
+        <text x="50" y="61" transform="rotate(90 50 50)" textAnchor="middle" dominantBaseline="central" className="fill-muted text-[7px]">
+          {active ? `${activePct}%` : "posts"}
         </text>
       </svg>
-      <ul className="min-w-0 flex-1 space-y-1.5">
-        {items.map((d, i) => (
-          <li key={d.label} className="flex items-center gap-2 text-sm">
-            <span
-              className={"h-2.5 w-2.5 shrink-0 rounded-sm " + (d.color ? "" : "bg-brand")}
-              style={
-                d.color
-                  ? { background: d.color }
-                  : { opacity: Math.max(1 - i * 0.16, 0.4) }
-              }
-            />
-            <span className="min-w-0 flex-1 truncate capitalize text-muted">{d.label}</span>
-            <span className="tabular-nums">{d.value}</span>
-            <span className="w-9 text-right text-xs tabular-nums text-muted">
-              {Math.round((d.value / total) * 100)}%
-            </span>
-          </li>
-        ))}
-      </ul>
+      <p className="mt-2 h-4 text-center text-xs text-muted">
+        {active ? (
+          <span className="font-medium capitalize text-fg">{active.label}</span>
+        ) : (
+          "Hover a slice for detail"
+        )}
+      </p>
     </div>
   );
 }
