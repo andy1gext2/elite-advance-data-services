@@ -594,6 +594,11 @@ function PostContent({
   onError: (msg: string) => void;
 }) {
   const [imaging, setImaging] = useState(false);
+  const [videoRendering, setVideoRendering] = useState(false);
+  // One shared progress bar for whichever generation is running (only one at a
+  // time). Image ≈ 9s, video ≈ 75s.
+  const generating = imaging || videoRendering;
+  const genPct = useEstimatedProgress(generating, imaging ? 9000 : 75000);
   // Image-grounding product: the post's own campaign product wins, else the one
   // picked in the studio — so a product post's image always features that product.
   const [productId, setProductId] = useState(item.product_asset_id ?? defaultProductId);
@@ -644,7 +649,17 @@ function PostContent({
             📅 {fmtPublish(publishAt)}
           </span>
         )}
-        <span className="ml-auto" />
+        {/* Shared generation progress — fills the space to the left of the status. */}
+        {generating ? (
+          <div className="ml-auto flex min-w-[120px] flex-1 items-center gap-2">
+            <ProgressBar percent={genPct} />
+            <span className="shrink-0 text-[11px] tabular-nums text-muted">
+              {Math.round(genPct)}%
+            </span>
+          </div>
+        ) : (
+          <span className="ml-auto" />
+        )}
         <Badge tone={STATUS_TONE[item.status] ?? "default"}>{item.status}</Badge>
       </div>
 
@@ -704,6 +719,7 @@ function PostContent({
                 hasVideo={Boolean(item.video_url)}
                 onDone={(url) => onSaved({ ...item, video_url: url })}
                 onError={onError}
+                onRenderingChange={setVideoRendering}
               />
             </div>
           </div>

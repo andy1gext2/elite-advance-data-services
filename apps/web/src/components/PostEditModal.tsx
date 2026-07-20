@@ -46,7 +46,10 @@ export function PostEditModal({
   const [productId, setProductId] = useState(defaultProductId);
   const [saving, setSaving] = useState(false);
   const [imaging, setImaging] = useState(false);
-  const imagePct = useEstimatedProgress(imaging, 9000); // ~9s per image
+  const [videoRendering, setVideoRendering] = useState(false);
+  // One shared progress bar for whichever generation runs (image ≈ 9s, video ≈ 75s).
+  const generating = imaging || videoRendering;
+  const genPct = useEstimatedProgress(generating, imaging ? 9000 : 75000);
   const [error, setError] = useState("");
   // The 8-second video vision Claude writes for Veo — visible + editable here so
   // the owner can steer the render (or leave blank to let Claude write it).
@@ -173,17 +176,25 @@ export function PostEditModal({
                 <Button variant="ghost" onClick={regenerate} loading={imaging}>
                   {imageUrl ? "🖼 Regenerate" : "🖼 Generate image"}
                 </Button>
-                {imaging && <ProgressBar percent={imagePct} label="Generating image…" />}
                 <VideoButton
                   businessId={businessId}
                   itemId={post.id}
                   hasVideo={Boolean(videoUrl)}
                   onDone={setVideoUrl}
                   onError={setError}
+                  onRenderingChange={setVideoRendering}
                   script={vision}
                 />
               </div>
             </div>
+            {generating && (
+              <div className="mb-2">
+                <ProgressBar
+                  percent={genPct}
+                  label={imaging ? "Generating image…" : "Rendering video…"}
+                />
+              </div>
+            )}
             <PostPreview
               channel={post.channel}
               body={body}
