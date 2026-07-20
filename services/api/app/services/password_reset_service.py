@@ -3,6 +3,7 @@ a new password. Codes are hashed at rest, expire, are single-use, and are rate-
 limited by attempt count."""
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +16,8 @@ from app.email.base import EmailMessage
 from app.email.registry import get_email_provider
 from app.models.password_reset import PasswordReset
 from app.services.auth_service import get_user_by_email
+
+logger = logging.getLogger("app.email")
 
 
 class InvalidResetCode(Exception):
@@ -54,23 +57,29 @@ def request_reset(db: Session, *, email: str) -> str | None:
     ))
     db.flush()
 
-    get_email_provider().send(EmailMessage(
-        to=user.email,
-        subject="Your Elite Advance password reset code",
-        text=(
-            f"Your password reset code is: {code}\n\n"
-            f"Enter it on the reset page to choose a new password. "
-            f"This code expires in {s.reset_code_ttl_minutes} minutes.\n\n"
-            f"If you didn't request this, you can ignore this email."
-        ),
-        html=(
-            f"<p>Your password reset code is:</p>"
-            f"<p style='font-size:24px;font-weight:700;letter-spacing:3px'>{code}</p>"
-            f"<p>Enter it on the reset page to choose a new password. "
-            f"This code expires in {s.reset_code_ttl_minutes} minutes.</p>"
-            f"<p style='color:#888'>If you didn't request this, you can ignore this email.</p>"
-        ),
-    ))
+    # Best-effort send: a mail-provider failure (bad SMTP config, unverified
+    # sender) must not 500 the request or reveal that the email exists. Log it so
+    # the operator can diagnose from the server logs.
+    try:
+        get_email_provider().send(EmailMessage(
+            to=user.email,
+            subject="Your Elite Advance password reset code",
+            text=(
+                f"Your password reset code is: {code}\n\n"
+                f"Enter it on the reset page to choose a new password. "
+                f"This code expires in {s.reset_code_ttl_minutes} minutes.\n\n"
+                f"If you didn't request this, you can ignore this email."
+            ),
+            html=(
+                f"<p>Your password reset code is:</p>"
+                f"<p style='font-size:24px;font-weight:700;letter-spacing:3px'>{code}</p>"
+                f"<p>Enter it on the reset page to choose a new password. "
+                f"This code expires in {s.reset_code_ttl_minutes} minutes.</p>"
+                f"<p style='color:#888'>If you didn't request this, you can ignore this email.</p>"
+            ),
+        ))
+    except Exception:  # noqa: BLE001 — never surface mail errors to the caller
+        logger.exception("Failed to send password-reset email to %s", user.email)
     return code
 
 
