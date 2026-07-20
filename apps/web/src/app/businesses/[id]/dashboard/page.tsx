@@ -230,8 +230,22 @@ export default function BusinessDashboardPage({
             />
           </div>
 
-          {/* Command-center grid: performance (wide) + the compact channel wheel
-              top-right; activity feed + sentiment on the second row. */}
+          {/* Top row: platform performance (3/4) + the channel wheel (1/4). */}
+          <div className="mt-4 grid gap-4 lg:grid-cols-4">
+            {platform && (
+              <div className="lg:col-span-3">
+                <PlatformPerformance businessId={id} data={platform} />
+              </div>
+            )}
+            <Card className={platform ? "lg:col-span-1" : "lg:col-span-1 lg:col-start-4"}>
+              <SectionTitle>Content by channel</SectionTitle>
+              <div className="flex justify-center py-1">
+                <Donut data={channelData} size={116} />
+              </div>
+            </Card>
+          </div>
+
+          {/* Content performance + activity rail + sentiment. */}
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <SectionTitle action={<span className="text-xs text-muted">Last 8 weeks</span>}>
@@ -240,22 +254,14 @@ export default function BusinessDashboardPage({
               <WeeklyBars data={data.timeseries.content_per_week} />
             </Card>
 
-            {/* Compact, interactive channel wheel — top-right. */}
-            <Card>
-              <SectionTitle>Content by channel</SectionTitle>
-              <div className="flex justify-center py-1">
-                <Donut data={channelData} size={116} />
-              </div>
-            </Card>
-
-            <Card className="lg:col-span-2">
+            <Card className="lg:row-span-2">
               <SectionTitle>Activity feed</SectionTitle>
               {feed.length === 0 ? (
                 <p className="text-sm text-muted">
                   Nothing yet — draft a campaign and it&apos;ll show up here.
                 </p>
               ) : (
-                <ul className="grid gap-3 sm:grid-cols-2">
+                <ul className="space-y-3">
                   {feed.map((a) => (
                     <li key={a.key} className="flex gap-2.5 text-sm">
                       <span className="shrink-0 leading-5">{a.icon}</span>
@@ -269,17 +275,11 @@ export default function BusinessDashboardPage({
               )}
             </Card>
 
-            <Card>
+            <Card className="lg:col-span-2">
               <SectionTitle>Review sentiment</SectionTitle>
               <SentimentBar s={data.sentiment} />
             </Card>
           </div>
-
-          {platform && (
-            <div className="mt-4">
-              <PlatformPerformance businessId={id} data={platform} />
-            </div>
-          )}
 
           {/* Upcoming posts strip */}
           <Card className="mt-4">
