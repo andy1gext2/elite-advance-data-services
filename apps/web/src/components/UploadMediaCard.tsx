@@ -14,6 +14,7 @@ export function UploadMediaCard({
   businessId: string;
   onPosted: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isVideo, setIsVideo] = useState(false);
@@ -60,16 +61,23 @@ export function UploadMediaCard({
 
   return (
     <Card className="mt-4">
-      <div className="flex items-start justify-between gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
         <div>
           <h2 className="text-lg font-semibold">Post your own media</h2>
           <p className="mt-1 text-sm text-muted">
             Upload a photo or video and post it exactly as-is to all your connected
-            platforms. It schedules automatically for 1 day out.
+            platforms — scheduled 1 day out.
           </p>
         </div>
-      </div>
+        <span className="shrink-0 text-muted">{open ? "▲" : "▼"}</span>
+      </button>
 
+      {open && (
       <div className="mt-4 space-y-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-lg border border-border bg-bg">
@@ -122,6 +130,7 @@ export function UploadMediaCard({
           </Button>
         </div>
       </div>
+      )}
     </Card>
   );
 }
