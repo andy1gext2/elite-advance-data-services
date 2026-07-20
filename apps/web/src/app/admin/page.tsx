@@ -17,6 +17,21 @@ export default function AdminPage() {
   const { me, loading } = useAuth();
   const [data, setData] = useState<AdminUsage | null>(null);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState<string | null>(null);
+
+  async function setPlan(businessId: string, tier: string) {
+    setError("");
+    setSaving(businessId);
+    try {
+      await api.adminSetPlan(businessId, tier);
+      const fresh = await api.adminUsage();
+      setData(fresh);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not change plan");
+    } finally {
+      setSaving(null);
+    }
+  }
 
   // Client-side gate (the API enforces it server-side too). Non-admins are
   // bounced to their dashboard rather than shown a broken page.
@@ -94,7 +109,19 @@ export default function AdminPage() {
                 {data.businesses.map((b) => (
                   <tr key={b.business_id} className="border-b border-border/60">
                     <td className="px-4 py-3 font-medium">{b.name}</td>
-                    <td className="px-4 py-3 text-muted">{b.plan ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={b.tier ?? ""}
+                        onChange={(e) => setPlan(b.business_id, e.target.value)}
+                        disabled={saving === b.business_id}
+                        className="rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg outline-none focus:border-brand"
+                      >
+                        <option value="starter">Starter</option>
+                        <option value="professional">Professional</option>
+                        <option value="growth">Growth</option>
+                        <option value="enterprise">Enterprise ∞</option>
+                      </select>
+                    </td>
                     <td className="px-4 py-3 text-right">{num(b.text_generations)}</td>
                     <td className="px-4 py-3 text-right text-muted">
                       {num(b.input_tokens)} / {num(b.output_tokens)}

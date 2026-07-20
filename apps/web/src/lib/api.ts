@@ -157,6 +157,12 @@ export const api = {
   // --- operator (admin-only) ---
   adminUsage: () => request<AdminUsage>("/api/v1/admin/usage"),
 
+  adminSetPlan: (businessId: string, tier: string) =>
+    request<{ business_id: string; tier: string; plan: string }>(
+      `/api/v1/admin/businesses/${businessId}/plan`,
+      { method: "POST", body: { tier } }
+    ),
+
   // --- businesses ---
   listBusinesses: () => request<Business[]>("/api/v1/businesses"),
 

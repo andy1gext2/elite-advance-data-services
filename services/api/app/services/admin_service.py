@@ -40,6 +40,7 @@ def usage_costs(db: Session) -> dict:
             "business_id": str(b.id),
             "name": b.name,
             "plan": (plans[b.plan_id].name if b.plan_id in plans else None),
+            "tier": (plans[b.plan_id].tier if b.plan_id in plans else None),
             # Advertised subscription price is stored in cents.
             "mrr_usd": round((plans[b.plan_id].price_monthly / 100), 2) if b.plan_id in plans else 0.0,
             "text_generations": 0,

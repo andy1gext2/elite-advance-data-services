@@ -29,6 +29,7 @@ export interface AdminUsageRow {
   business_id: string;
   name: string;
   plan: string | null;
+  tier: string | null;
   mrr_usd: number;
   text_generations: number;
   input_tokens: number;

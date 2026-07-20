@@ -26,6 +26,25 @@ def test_admin_usage_requires_platform_admin(client):
     assert client.get(f"{API}/admin/usage", headers=other).status_code == 403
 
 
+def test_admin_can_set_business_plan(client):
+    admin = _signup(client, ADMIN_EMAIL)
+    other = _signup(client, "planuser@example.com")
+    bid = client.post(f"{API}/businesses", json={"name": "Acme"}, headers=other).json()["id"]
+
+    # Non-admin cannot override plans.
+    assert client.post(f"{API}/admin/businesses/{bid}/plan",
+                       json={"tier": "enterprise"}, headers=other).status_code == 403
+
+    # Operator sets the business to Enterprise (unlimited quotas).
+    r = client.post(f"{API}/admin/businesses/{bid}/plan",
+                    json={"tier": "enterprise"}, headers=admin)
+    assert r.status_code == 200, r.text
+    assert r.json()["tier"] == "enterprise"
+
+    status = client.get(f"{API}/businesses/{bid}/billing/status", headers=other).json()
+    assert status["plan_tier"] == "enterprise"
+
+
 def test_admin_usage_aggregates_costs(client):
     admin = _signup(client, ADMIN_EMAIL)
     # A business with one generated post → one text-AI row → non-zero cost.
