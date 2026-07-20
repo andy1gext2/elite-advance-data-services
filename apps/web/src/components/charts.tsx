@@ -138,13 +138,32 @@ export function Donut({
           {active ? `${activePct}%` : "posts"}
         </text>
       </svg>
-      <p className="mt-2 h-4 text-center text-xs text-muted">
-        {active ? (
-          <span className="font-medium capitalize text-fg">{active.label}</span>
-        ) : (
-          "Hover a slice for detail"
-        )}
-      </p>
+      {/* Legend labels which color is which channel. Counts + % stay on hover
+          (shown in the wheel's center). Hovering a label also raises its slice. */}
+      <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1">
+        {items.map((d, i) => (
+          <button
+            key={d.label}
+            type="button"
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            className={
+              "flex items-center gap-1.5 text-xs transition-colors " +
+              (hover === i ? "font-medium text-fg" : "text-muted")
+            }
+          >
+            <span
+              className={"h-2 w-2 shrink-0 rounded-sm " + (d.color ? "" : "bg-brand")}
+              style={
+                d.color
+                  ? { background: d.color }
+                  : { opacity: Math.max(1 - i * 0.16, 0.4) }
+              }
+            />
+            <span className="capitalize">{d.label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
