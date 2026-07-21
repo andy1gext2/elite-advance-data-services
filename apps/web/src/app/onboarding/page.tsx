@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { PLATFORM_LABELS } from "@/lib/types";
 import { AppShell } from "@/components/AppShell";
 import { PlatformLogo } from "@/components/PostPreview";
+import { IndustryCombobox } from "@/components/IndustryCombobox";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
 
 // Meta (Facebook + Instagram) and Google Business first — the platforms clients
@@ -207,10 +208,10 @@ export default function OnboardingPage() {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Industry">
-                <Input
+                <IndustryCombobox
                   value={form.industry}
-                  onChange={(e) => set("industry", e.target.value)}
-                  placeholder="Food & beverage"
+                  onChange={(v) => set("industry", v)}
+                  placeholder="e.g. Coffee shop / Cafe"
                 />
               </Field>
               <Field label="Website">

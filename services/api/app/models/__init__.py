@@ -5,6 +5,7 @@ from app.models.audit_log import AuditLog
 from app.models.business import Business
 from app.models.campaign import Campaign, CampaignItem
 from app.models.content import ContentIdea, ContentItem
+from app.models.industry_trend import IndustryTrend
 from app.models.membership import Membership
 from app.models.password_reset import PasswordReset
 from app.models.plan import Plan
@@ -24,6 +25,7 @@ __all__ = [
     "CampaignItem",
     "ContentIdea",
     "ContentItem",
+    "IndustryTrend",
     "Membership",
     "PasswordReset",
     "Plan",

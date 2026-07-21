@@ -28,6 +28,7 @@ from app.api import (
     oauth,
     reputation,
     scheduling,
+    trends,
 )
 from app.core.config import get_settings
 from app.core.db import init_db
@@ -72,6 +73,8 @@ app.include_router(assets.router, prefix="/api/v1")
 app.include_router(billing.router, prefix="/api/v1")
 app.include_router(billing.public, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(trends.router, prefix="/api/v1")
+app.include_router(trends.public, prefix="/api/v1")
 
 # Serve locally-stored uploads + generated images (dev). In production, files live
 # in S3/CDN and this mount is unused.

@@ -18,6 +18,30 @@ export interface Membership {
   role: string;
 }
 
+export interface Industry {
+  slug: string;
+  label: string;
+  emoji: string;
+}
+
+export interface TrendPostIdea {
+  title: string;
+  why: string;
+  channel: string;
+}
+
+export interface IndustryTrend {
+  industry: string;
+  display_industry: string;
+  period: string;
+  generated_at: string | null;
+  keywords: string[];
+  products: string[];
+  services: string[];
+  seasonal: string[];
+  post_ideas: TrendPostIdea[];
+}
+
 export interface Me {
   user: User;
   memberships: Membership[];

@@ -1,0 +1,155 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { api, ApiError } from "@/lib/api";
+import { CHANNEL_COLORS, CHANNEL_LABELS, type IndustryTrend } from "@/lib/types";
+import { Card } from "@/components/ui";
+
+// Dashboard card: AI-inferred, seasonally-aware trends for the business's
+// industry (keywords / products / services / seasonal) plus concrete post ideas.
+// Each idea deep-links into the Content studio with its brief prefilled (via
+// sessionStorage, read by the content page on mount).
+
+function ChipRow({
+  label,
+  items,
+  accent,
+}: {
+  label: string;
+  items: string[];
+  accent?: boolean;
+}) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((t, i) => (
+          <span
+            key={i}
+            className={
+              "rounded-full px-2.5 py-1 text-xs " +
+              (accent
+                ? "border border-brand/40 bg-brand/10 text-brand"
+                : "border border-border bg-bg text-fg/80")
+            }
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function TrendsCard({ businessId }: { businessId: string }) {
+  const router = useRouter();
+  const [trend, setTrend] = useState<IndustryTrend | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .businessTrends(businessId)
+      .then((t) => alive && setTrend(t))
+      .catch((e) =>
+        alive && setError(e instanceof ApiError ? e.message : "Could not load trends")
+      )
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [businessId]);
+
+  function draft(idea: { title: string; channel: string }) {
+    // Hand the brief + preferred channel to the Content studio.
+    sessionStorage.setItem(
+      "draftBrief",
+      JSON.stringify({ brief: idea.title, channel: idea.channel })
+    );
+    router.push(`/businesses/${businessId}/content`);
+  }
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">
+          🔥 Trending{trend ? ` in ${trend.display_industry}` : ""}
+        </h3>
+        <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+          AI · seasonal
+        </span>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted">Reading the latest trends…</p>
+      ) : error ? (
+        <p className="text-sm text-muted">
+          {error.includes("industry")
+            ? "Set your business industry (⋯ → Edit) to unlock trend suggestions."
+            : error}
+        </p>
+      ) : trend ? (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChipRow label={`Seasonal right now`} items={trend.seasonal} accent />
+            <ChipRow label="Trending keywords" items={trend.keywords} />
+            <ChipRow label="Hot products" items={trend.products} />
+            <ChipRow label="In-demand services" items={trend.services} />
+          </div>
+
+          {trend.post_ideas.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
+                Post ideas for you
+              </p>
+              <ul className="space-y-2">
+                {trend.post_ideas.map((idea, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border bg-bg p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2 w-2 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor:
+                              CHANNEL_COLORS[idea.channel] ?? CHANNEL_COLORS.generic,
+                          }}
+                          aria-hidden
+                        />
+                        <p className="truncate text-sm font-medium">{idea.title}</p>
+                      </div>
+                      {idea.why && (
+                        <p className="mt-0.5 text-xs text-muted">{idea.why}</p>
+                      )}
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        Suggested for {CHANNEL_LABELS[idea.channel] ?? idea.channel}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => draft(idea)}
+                      className="shrink-0 rounded-lg border border-brand/50 px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand/10"
+                    >
+                      ✍ Draft this
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="text-[11px] text-muted">
+            AI-inferred seasonal guidance for {trend.display_industry.toLowerCase()} —
+            refreshed monthly.
+          </p>
+        </div>
+      ) : null}
+    </Card>
+  );
+}

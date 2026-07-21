@@ -100,6 +100,22 @@ export default function ContentPage({
   const [calOpen, setCalOpen] = useState(false);
   const [notice, setNotice] = useState("");
 
+  // Prefill the brief when arriving from a dashboard trend suggestion.
+  useEffect(() => {
+    const raw = sessionStorage.getItem("draftBrief");
+    if (!raw) return;
+    sessionStorage.removeItem("draftBrief");
+    try {
+      const { brief: b } = JSON.parse(raw) as { brief?: string };
+      if (b) {
+        setBrief(b);
+        setNotice("Prefilled from a trending suggestion — pick a duration and generate.");
+      }
+    } catch {
+      /* ignore malformed */
+    }
+  }, []);
+
   // Rough per-timeframe estimate: a month drafts ~30 posts, a week ~15, a day ~5.
   const campaignPct = useEstimatedProgress(
     busy,

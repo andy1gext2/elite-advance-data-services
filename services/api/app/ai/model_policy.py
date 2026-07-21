@@ -36,6 +36,10 @@ def select_model(*, task: TaskType, content_type: str | None = None) -> str | No
         return None
     if task == TaskType.CALENDAR:
         return settings.ai_cheap_model
+    # Industry trend briefs are short, structured, and refreshed in bulk — the
+    # cheap tier (Haiku) is the right fit for the cost.
+    if task == TaskType.INDUSTRY_TRENDS:
+        return settings.ai_cheap_model
     if task == TaskType.CONTENT and content_type in CHEAP_CONTENT_TYPES:
         return settings.ai_cheap_model
     return None

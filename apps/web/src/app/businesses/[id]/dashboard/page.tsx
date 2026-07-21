@@ -17,6 +17,7 @@ import { Alert, Button, Card, PageHeader } from "@/components/ui";
 import { Donut, SentimentBar, WeeklyBars } from "@/components/charts";
 import { PlatformPerformance } from "@/components/PlatformPerformance";
 import { PlatformDetailModal } from "@/components/PlatformDetailModal";
+import { TrendsCard } from "@/components/TrendsCard";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -250,6 +251,11 @@ export default function BusinessDashboardPage({
                 Click a channel for its analytics
               </p>
             </Card>
+          </div>
+
+          {/* Industry trends + post suggestions for this business's industry. */}
+          <div className="mt-4">
+            <TrendsCard businessId={id} />
           </div>
 
           {/* Content performance + activity rail + sentiment. */}

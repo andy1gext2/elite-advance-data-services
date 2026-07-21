@@ -23,6 +23,7 @@ class TaskType(str, Enum):
     ANALYTICS_SUMMARY = "analytics_summary"
     CAMPAIGN = "campaign"
     SEO = "seo"
+    INDUSTRY_TRENDS = "industry_trends"
 
 
 @dataclass

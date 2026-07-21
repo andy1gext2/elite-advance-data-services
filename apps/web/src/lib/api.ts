@@ -12,6 +12,8 @@ import type {
   CampaignDetail,
   ContentItem,
   Dashboard,
+  Industry,
+  IndustryTrend,
   Insights,
   Me,
   Plan,
@@ -178,6 +180,13 @@ export const api = {
       `/api/v1/admin/businesses/${businessId}/plan`,
       { method: "POST", body: { tier } }
     ),
+
+  // --- industries & trends ---
+  getIndustries: () =>
+    request<{ industries: Industry[] }>("/api/v1/industries", { auth: false }),
+
+  businessTrends: (id: string) =>
+    request<IndustryTrend>(`/api/v1/businesses/${id}/trends`),
 
   // --- businesses ---
   listBusinesses: () => request<Business[]>("/api/v1/businesses"),

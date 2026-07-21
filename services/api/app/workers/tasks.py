@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.ai.registry import get_ai_router
 from app.core.db import SessionLocal
 from app.services.campaign_service import run_autopilot
+from app.services.industry_trend_service import refresh_stale as refresh_industry_trends_stale
 from app.services.reputation_service import poll_all_businesses
 from app.services.scheduling_service import run_due
 from app.services.video_service import advance_processing_jobs
@@ -39,6 +40,16 @@ def poll_reviews() -> dict:
     connector can't read reviews yet are skipped."""
     with SessionLocal() as db:
         summary = poll_all_businesses(db)
+        db.commit()
+        return summary
+
+
+@celery_app.task(name="app.workers.tasks.refresh_industry_trends")
+def refresh_industry_trends() -> dict:
+    """Beat-scheduled: regenerate any cached industry trend brief whose month has
+    rolled over, so dashboard suggestions stay seasonally current."""
+    with SessionLocal() as db:
+        summary = refresh_industry_trends_stale(db, router=get_ai_router())
         db.commit()
         return summary
 

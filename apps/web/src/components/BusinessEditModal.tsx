@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { Business } from "@/lib/types";
 import { Alert, Button, Field, Input, Textarea } from "@/components/ui";
+import { IndustryCombobox } from "@/components/IndustryCombobox";
 
 // Edits a business's brand/profile — the same details captured during onboarding
 // (name, industry, website, audience, voice, tone, goals). Saves via PATCH and
@@ -166,10 +167,10 @@ export function BusinessEditModal({
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Industry">
-              <Input
+              <IndustryCombobox
                 value={form.industry}
-                onChange={(e) => set("industry", e.target.value)}
-                placeholder="Food & beverage"
+                onChange={(v) => set("industry", v)}
+                placeholder="e.g. Coffee shop / Cafe"
               />
             </Field>
             <Field label="Website">

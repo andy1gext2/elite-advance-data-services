@@ -22,6 +22,8 @@ class MockProvider(AIProvider):
 
         if request.task == TaskType.REVIEW_RESPONSE:
             text = self._review_reply(ctx, name)
+        elif request.task == TaskType.INDUSTRY_TRENDS:
+            text = self._industry_trends(ctx)
         elif request.task == TaskType.BUSINESS_INSIGHTS:
             text = self._insights(ctx, name)
         else:
@@ -40,6 +42,25 @@ class MockProvider(AIProvider):
             output_tokens=max(1, len(text) // 4),
             raw={"mock": True},
         )
+
+    def _industry_trends(self, ctx: dict) -> str:
+        """Deterministic JSON trend brief so the industry-trends flow is testable
+        without a real model. Mirrors the structured schema the real prompt asks for."""
+        import json
+
+        industry = ctx.get("industry", "your industry")
+        month = ctx.get("month", "this month")
+        return json.dumps({
+            "keywords": [f"{industry} tips", f"local {industry}", "small business", "behind the scenes"],
+            "products": [f"signature {industry} item", "seasonal special", "gift bundle"],
+            "services": [f"{industry} consultation", "loyalty program", "same-day service"],
+            "seasonal": [f"{month} promotion", f"{month} seasonal favorite"],
+            "post_ideas": [
+                {"title": f"Show a behind-the-scenes look at your {industry}", "why": f"Builds trust and personality for a {industry} audience.", "channel": "instagram"},
+                {"title": f"Highlight your top {month} seasonal offer", "why": "Seasonal relevance drives timely engagement.", "channel": "facebook"},
+                {"title": "Share a quick customer win or testimonial", "why": "Social proof converts nearby prospects.", "channel": "google_business"},
+            ],
+        })
 
     def _review_reply(self, ctx: dict, name: str) -> str:
         """A plausible, sentiment-appropriate reply so the reputation flow is

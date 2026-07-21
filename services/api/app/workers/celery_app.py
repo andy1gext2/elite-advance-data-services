@@ -36,6 +36,11 @@ celery_app.conf.update(
             "task": "app.workers.tasks.poll_reviews",
             "schedule": 900.0,
         },
+        # Trends: refresh any industry brief whose month rolled over (daily check).
+        "refresh-industry-trends-daily": {
+            "task": "app.workers.tasks.refresh_industry_trends",
+            "schedule": 86400.0,
+        },
         # Finish in-flight Veo renders so the browser doesn't have to poll.
         "advance-video-jobs-every-30s": {
             "task": "app.workers.tasks.advance_video_jobs",
