@@ -37,9 +37,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted sm:inline">
+            <Link
+              href="/account"
+              className="hidden text-sm text-muted hover:text-fg sm:inline"
+              title="Account settings"
+            >
               {me.user.email}
-            </span>
+            </Link>
             <ThemeToggle />
             <Button variant="secondary" onClick={logout}>
               Sign out

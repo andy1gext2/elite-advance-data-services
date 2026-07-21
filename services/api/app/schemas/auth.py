@@ -38,6 +38,20 @@ class ResetPasswordIn(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class UpdateProfileIn(BaseModel):
+    full_name: str | None = Field(default=None, max_length=120)
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class DeleteAccountIn(BaseModel):
+    # Require the password to confirm a destructive, irreversible deletion.
+    password: str
+
+
 class TokenOut(BaseModel):
     access_token: str
     refresh_token: str

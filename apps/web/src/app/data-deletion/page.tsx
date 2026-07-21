@@ -39,7 +39,16 @@ export default function DataDeletionPage() {
 
       <Section heading="Delete your entire account">
         <p>
-          To delete your account and all associated personal data, email us at{" "}
+          Signed in to the app, open <strong>Account settings</strong> (your email
+          in the sidebar) and, under <strong>Danger zone</strong>, choose{" "}
+          <strong>Delete my account</strong>. Confirm with your password and we
+          immediately and permanently delete your account and every business you
+          own — all content, campaigns, schedules, reviews, products, and
+          connected-account access tokens. You can also{" "}
+          <strong>export a full copy of your data</strong> from the same page first.
+        </p>
+        <p>
+          Prefer not to use the app? Email us at{" "}
           <a href={`mailto:${CONTACT}?subject=Data%20Deletion%20Request`} className="text-brand hover:underline">
             {CONTACT}
           </a>{" "}

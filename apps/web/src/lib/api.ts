@@ -155,6 +155,21 @@ export const api = {
       body: { email, code, new_password },
     }),
 
+  // --- account (self-service) ---
+  updateProfile: (full_name: string | null) =>
+    request<Me>("/api/v1/auth/me", { method: "PATCH", body: { full_name } }),
+
+  changePassword: (current_password: string, new_password: string) =>
+    request<void>("/api/v1/auth/change-password", {
+      method: "POST",
+      body: { current_password, new_password },
+    }),
+
+  exportAccount: () => request<unknown>("/api/v1/auth/export"),
+
+  deleteAccount: (password: string) =>
+    request<void>("/api/v1/auth/me", { method: "DELETE", body: { password } }),
+
   // --- operator (admin-only) ---
   adminUsage: () => request<AdminUsage>("/api/v1/admin/usage"),
 

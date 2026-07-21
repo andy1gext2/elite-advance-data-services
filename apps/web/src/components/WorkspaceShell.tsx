@@ -93,10 +93,20 @@ export function WorkspaceShell({
           >
             ← All businesses
           </Link>
+          <Link
+            href="/account"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-bg hover:text-fg"
+          >
+            ⚙ Account settings
+          </Link>
           <div className="flex items-center justify-between gap-2 px-1">
-            <span className="min-w-0 flex-1 truncate text-xs text-muted" title={me.user.email}>
+            <Link
+              href="/account"
+              className="min-w-0 flex-1 truncate text-xs text-muted hover:text-fg"
+              title={me.user.email}
+            >
               {me.user.email}
-            </span>
+            </Link>
             <ThemeToggle />
           </div>
           <Button variant="secondary" className="w-full" onClick={logout}>
