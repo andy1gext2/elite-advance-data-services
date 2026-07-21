@@ -133,6 +133,35 @@ def sync_reviews(
     return {"fetched": fetched, "new": new}
 
 
+def poll_all_businesses(db: Session) -> dict:
+    """Tenant-agnostic entry point for the scheduled review poller (Celery beat).
+
+    Polls reviews only for businesses that have at least one connected account, so
+    we never fabricate reviews for tenants who haven't connected anything. Each
+    tenant is synced through its own accounts (platforms whose connector can't
+    read reviews yet are skipped inside sync_reviews). Aggregates the counts.
+
+    Note: iterates tenants sequentially — fine at current scale; shard/queue per
+    tenant when this grows into the thousands."""
+    business_ids = list(db.scalars(
+        select(SocialAccount.business_id).distinct()
+    ).all())
+
+    polled = fetched = new = 0
+    for bid in business_ids:
+        business = db.get(Business, bid)
+        if not business:
+            continue
+        try:
+            result = sync_reviews(db, business=business)
+        except Exception:  # noqa: BLE001 - one tenant's failure must not stop the sweep
+            continue
+        polled += 1
+        fetched += result["fetched"]
+        new += result["new"]
+    return {"businesses_polled": polled, "fetched": fetched, "new": new}
+
+
 # ── Read ────────────────────────────────────────────
 def list_reviews(
     db: Session, *, business_id: uuid.UUID,

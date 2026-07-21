@@ -31,6 +31,11 @@ celery_app.conf.update(
             "task": "app.workers.tasks.propose_campaigns",
             "schedule": 3600.0,
         },
+        # Reputation: pull new reviews for connected tenants every 15 minutes.
+        "poll-reviews-every-15-min": {
+            "task": "app.workers.tasks.poll_reviews",
+            "schedule": 900.0,
+        },
         # Finish in-flight Veo renders so the browser doesn't have to poll.
         "advance-video-jobs-every-30s": {
             "task": "app.workers.tasks.advance_video_jobs",

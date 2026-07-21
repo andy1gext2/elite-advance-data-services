@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.ai.registry import get_ai_router
 from app.core.db import SessionLocal
 from app.services.campaign_service import run_autopilot
+from app.services.reputation_service import poll_all_businesses
 from app.services.scheduling_service import run_due
 from app.services.video_service import advance_processing_jobs
 from app.storage.registry import get_storage
@@ -27,6 +28,17 @@ def propose_campaigns() -> dict:
     Proposals wait for human approval (approve-first)."""
     with SessionLocal() as db:
         summary = run_autopilot(db, router=get_ai_router())
+        db.commit()
+        return summary
+
+
+@celery_app.task(name="app.workers.tasks.poll_reviews")
+def poll_reviews() -> dict:
+    """Beat-scheduled: sync new reviews for every tenant with a connected account,
+    so reputation stays current without anyone clicking 'Sync'. Platforms whose
+    connector can't read reviews yet are skipped."""
+    with SessionLocal() as db:
+        summary = poll_all_businesses(db)
         db.commit()
         return summary
 

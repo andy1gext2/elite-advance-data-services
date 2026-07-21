@@ -125,3 +125,33 @@ def test_reviews_rbac_and_isolation(client):
     # A different tenant can't see these reviews at all.
     other_h, _ = _owner(client, email="repother@example.com")
     assert client.get(f"{API}/businesses/{bid}/reviews", headers=other_h).status_code == 404
+
+
+def test_scheduled_poller_syncs_only_connected_tenants(client):
+    """The Celery review poller (poll_all_businesses) syncs tenants that have a
+    connected account and skips those that don't — so it never fabricates reviews
+    for accounts that never connected anything."""
+    from app.core.db import get_db
+    from app.services import reputation_service
+
+    # Tenant A connects an account; tenant B does not.
+    h_a, bid_a = _owner(client, email="pollA@example.com")
+    client.post(
+        f"{API}/businesses/{bid_a}/integrations/accounts",
+        json={"platform": "google_business", "display_name": "Acme GBP"}, headers=h_a,
+    )
+    _owner(client, email="pollB@example.com")  # no account connected
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        summary = reputation_service.poll_all_businesses(db)
+        db.commit()
+    finally:
+        db.close()
+
+    # Only the one connected tenant is polled; the mock returns its sample set.
+    assert summary["businesses_polled"] == 1
+    assert summary["fetched"] == 6 and summary["new"] == 6
+
+    # Those reviews are now visible on tenant A without anyone clicking "Sync".
+    assert len(client.get(f"{API}/businesses/{bid_a}/reviews", headers=h_a).json()) == 6
