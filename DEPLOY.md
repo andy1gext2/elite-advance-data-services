@@ -96,12 +96,18 @@ The publish engine + review polling run on a schedule via Celery beat.
 
 1. In the **same project → New → GitHub repo** (same repo again).
 2. **Root Directory:** `services/api`
-3. **Settings → Deploy → Custom Start Command:**
-   ```
-   celery -A app.workers.celery_app worker --beat --loglevel=info
-   ```
-4. **Variables:** same as the API service (`DATABASE_URL`, `REDIS_URL`, secrets,
-   `AI_*`). It needs no public domain and no health check.
+3. **Settings → Config-as-code → Railway Config File:** `railway.worker.json`
+   (relative to the root directory). This is the key step: the worker uses
+   [services/api/railway.worker.json](services/api/railway.worker.json) — which
+   sets the Celery start command and, by declaring **no** `healthcheckPath`, skips
+   the health check (the worker has no web server, so `/health` would fail-loop).
+   Do **not** rely on a dashboard start command — the repo config file overrides it.
+4. **Variables:** same as the API service — at minimum `DATABASE_URL`, `REDIS_URL`,
+   `FERNET_KEY` (must match the API's exactly, or it can't decrypt stored tokens),
+   `JWT_SECRET`, `APP_SECRET_KEY`, `APP_ENV=production`, and the `AI_*` keys. The
+   worker needs no public domain. The safest way is reference variables pointing at
+   the other services, e.g. `${{ Postgres.DATABASE_URL }}`, `${{ Redis.REDIS_URL }}`,
+   and `${{ <api-service-name>.FERNET_KEY }}`.
 5. Deploy. Logs should show `celery@... ready` and `beat: Starting`.
 
 ---
