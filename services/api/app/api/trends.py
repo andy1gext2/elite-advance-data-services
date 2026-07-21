@@ -11,6 +11,7 @@ from app.api.deps import TenantContext, get_membership_ctx
 from app.core.db import get_db
 from app.data import industries
 from app.services import industry_trend_service
+from app.services.operator import is_operator_business
 
 # Tenant-scoped: the business's own trend brief.
 router = APIRouter(prefix="/businesses/{business_id}", tags=["trends"])
@@ -31,7 +32,14 @@ def business_trends(
     db: Session = Depends(get_db),
 ) -> dict:
     """The cached trend brief for this business's industry (generated on first
-    request, refreshed monthly). 400 if the business has no industry set yet."""
+    request, refreshed monthly). Gated to Professional and above (402); 400 if the
+    business has no industry set yet."""
+    features = ctx.business.plan.features if ctx.business.plan else {}
+    if not features.get("industry_trends") and not is_operator_business(db, ctx.business):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Industry trend suggestions are available on the Professional plan and above.",
+        )
     if not (ctx.business.industry and ctx.business.industry.strip()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

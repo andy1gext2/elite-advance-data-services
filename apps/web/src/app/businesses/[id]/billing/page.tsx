@@ -173,6 +173,7 @@ export default function BillingPage({
                 <li className="font-medium text-fg">
                   {fmtLimit(p.video_monthly_quota)} videos / mo
                 </li>
+                {p.features.industry_trends && <li>AI industry trends</li>}
                 {p.features.white_label && <li>White-label</li>}
                 {p.features.priority_support && <li>Priority support</li>}
               </ul>

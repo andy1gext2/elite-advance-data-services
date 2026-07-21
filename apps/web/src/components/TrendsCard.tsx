@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { CHANNEL_COLORS, CHANNEL_LABELS, type IndustryTrend } from "@/lib/types";
@@ -49,6 +50,7 @@ export function TrendsCard({ businessId }: { businessId: string }) {
   const router = useRouter();
   const [trend, setTrend] = useState<IndustryTrend | null>(null);
   const [error, setError] = useState("");
+  const [locked, setLocked] = useState(false); // 402 → plan doesn't include trends
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,9 +58,11 @@ export function TrendsCard({ businessId }: { businessId: string }) {
     api
       .businessTrends(businessId)
       .then((t) => alive && setTrend(t))
-      .catch((e) =>
-        alive && setError(e instanceof ApiError ? e.message : "Could not load trends")
-      )
+      .catch((e) => {
+        if (!alive) return;
+        if (e instanceof ApiError && e.status === 402) setLocked(true);
+        else setError(e instanceof ApiError ? e.message : "Could not load trends");
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -87,6 +91,23 @@ export function TrendsCard({ businessId }: { businessId: string }) {
 
       {loading ? (
         <p className="text-sm text-muted">Reading the latest trends…</p>
+      ) : locked ? (
+        <div className="rounded-lg border border-dashed border-border bg-bg p-4">
+          <p className="text-sm text-fg/90">
+            🔒 <span className="font-medium">Industry trend suggestions</span> are a
+            Professional feature.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Upgrade to get seasonal, industry-tailored ideas for what to post next —
+            keywords, hot products &amp; services, and ready-to-draft post ideas.
+          </p>
+          <Link
+            href={`/businesses/${businessId}/billing`}
+            className="mt-3 inline-block rounded-lg border border-brand/50 px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand/10"
+          >
+            View plans →
+          </Link>
+        </div>
       ) : error ? (
         <p className="text-sm text-muted">
           {error.includes("industry")

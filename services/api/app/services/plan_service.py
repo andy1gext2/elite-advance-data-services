@@ -14,7 +14,7 @@ DEFAULT_PLANS: list[dict] = [
         "ai_monthly_quota": 150, "image_monthly_quota": 40, "video_monthly_quota": 1,
         "features": {"advanced_analytics": False, "white_label": False,
                      "priority_support": False, "enterprise_integrations": False,
-                     "autopilot": False},
+                     "autopilot": False, "industry_trends": False},
     },
     {
         "tier": PlanTier.PROFESSIONAL.value, "name": "Professional", "price_monthly": 14999,
@@ -22,7 +22,7 @@ DEFAULT_PLANS: list[dict] = [
         "ai_monthly_quota": 1000, "image_monthly_quota": 250, "video_monthly_quota": 8,
         "features": {"advanced_analytics": True, "white_label": False,
                      "priority_support": False, "enterprise_integrations": False,
-                     "autopilot": True},
+                     "autopilot": True, "industry_trends": True},
     },
     {
         "tier": PlanTier.GROWTH.value, "name": "Growth", "price_monthly": 39999,
@@ -30,7 +30,7 @@ DEFAULT_PLANS: list[dict] = [
         "ai_monthly_quota": 5000, "image_monthly_quota": 1000, "video_monthly_quota": 30,
         "features": {"advanced_analytics": True, "white_label": True,
                      "priority_support": True, "enterprise_integrations": False,
-                     "autopilot": True},
+                     "autopilot": True, "industry_trends": True},
     },
     {
         "tier": PlanTier.ENTERPRISE.value, "name": "Enterprise", "price_monthly": 0,
@@ -38,7 +38,7 @@ DEFAULT_PLANS: list[dict] = [
         "ai_monthly_quota": UNLIMITED, "image_monthly_quota": UNLIMITED, "video_monthly_quota": UNLIMITED,
         "features": {"advanced_analytics": True, "white_label": True,
                      "priority_support": True, "enterprise_integrations": True,
-                     "autopilot": True},
+                     "autopilot": True, "industry_trends": True},
     },
 ]
 

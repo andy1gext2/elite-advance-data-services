@@ -4,7 +4,23 @@ from __future__ import annotations
 API = "/api/v1"
 
 
-def _owner(client, email="trends@example.com", industry="Coffee shop / Cafe"):
+def _set_tier(client, bid, tier):
+    """Move a business onto a plan tier (industry trends need Professional+)."""
+    import uuid as u
+    from app.core.db import get_db
+    from app.models.business import Business
+    from app.services.plan_service import get_plan_by_tier
+
+    db = next(client.app.dependency_overrides[get_db]())
+    try:
+        biz = db.get(Business, u.UUID(bid))
+        biz.plan_id = get_plan_by_tier(db, tier).id
+        db.commit()
+    finally:
+        db.close()
+
+
+def _owner(client, email="trends@example.com", industry="Coffee shop / Cafe", tier="professional"):
     tok = client.post(
         f"{API}/auth/signup", json={"email": email, "password": "password123"}
     ).json()["access_token"]
@@ -12,6 +28,8 @@ def _owner(client, email="trends@example.com", industry="Coffee shop / Cafe"):
     bid = client.post(
         f"{API}/businesses", json={"name": "Bean There", "industry": industry}, headers=h
     ).json()["id"]
+    if tier:
+        _set_tier(client, bid, tier)  # default new businesses are Starter (no trends)
     return h, bid
 
 
@@ -61,9 +79,17 @@ def test_trends_are_cached_and_shared_across_tenants(client):
 
 
 def test_trends_requires_industry(client):
-    tok = client.post(
-        f"{API}/auth/signup", json={"email": "noind@example.com", "password": "password123"}
-    ).json()["access_token"]
-    h = {"Authorization": f"Bearer {tok}"}
-    bid = client.post(f"{API}/businesses", json={"name": "Mystery Co"}, headers=h).json()["id"]
+    # Professional business (has the feature) but no industry set → 400.
+    h, bid = _owner(client, email="noind@example.com", industry="")
     assert client.get(f"{API}/businesses/{bid}/trends", headers=h).status_code == 400
+
+
+def test_trends_gated_to_professional_and_above(client):
+    # A Starter business (the default) is blocked with 402; upgrading unlocks it.
+    h, bid = _owner(client, email="starter@example.com", tier="starter")
+    r = client.get(f"{API}/businesses/{bid}/trends", headers=h)
+    assert r.status_code == 402, r.text
+    assert "Professional" in r.json()["detail"]
+
+    _set_tier(client, bid, "professional")
+    assert client.get(f"{API}/businesses/{bid}/trends", headers=h).status_code == 200

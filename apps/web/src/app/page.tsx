@@ -53,11 +53,11 @@ const PRICING = [
   { name: "Starter", price: "$59.99", tagline: "For solo owners getting started.",
     features: ["1 business", "150 AI generations / mo", "5 connected channels", "Content + calendar"] },
   { name: "Professional", price: "$149.99", tagline: "For growing brands.", featured: true,
-    features: ["3 businesses", "1,000 AI generations / mo", "All channels", "Scheduling + reputation"] },
+    features: ["3 businesses", "1,000 AI generations / mo", "All channels", "Scheduling + reputation", "AI industry trends"] },
   { name: "Growth", price: "$399.99", tagline: "For teams and multi-location.",
-    features: ["20 businesses", "5,000 AI generations / mo", "Team roles + approvals", "Analytics + insights"] },
+    features: ["20 businesses", "5,000 AI generations / mo", "Team roles + approvals", "Analytics + insights", "AI industry trends"] },
   { name: "Enterprise", price: "Custom", tagline: "For agencies at scale.",
-    features: ["Unlimited businesses", "Custom AI quota", "SSO + audit logs", "Dedicated support"] },
+    features: ["Unlimited businesses", "Custom AI quota", "SSO + audit logs", "AI industry trends", "Dedicated support"] },
 ];
 
 export default function LandingPage() {
